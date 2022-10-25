@@ -10,7 +10,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 
 from Models.dataset import IRMDataset, ToTensor
 from Models.models import BLSTM
-from Models.TDNN import ECAPA_TDNN, multi_TDNN
+from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 
 ## Set up project dir
@@ -38,10 +38,10 @@ if __name__ == "__main__":
     ## Dataloader
     # train
     train_irm_dataset = IRMDataset(
-        path="/data_a11/mayi/project/CAM/lst/utt_len",
-        path_sorted = "/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/snr_sorted",
+        path="../lst/utt_len",
+        path_sorted = "../lst/snr_sorted",
         sub=0.1,
-        spk="/data_a11/mayi/project/CAM/lst/train_spk.lst",
+        spk="../lst/train_spk.lst",
         batch_size=configs["batchsize"], dur=configs["dur"],
         sampling_rate=16000, mode="train", max_size=200000, data=configs["data"])
     train_loader = DataLoader(
@@ -53,10 +53,10 @@ if __name__ == "__main__":
     #print('check dataset length:',len(train_irm_dataset))    
     # valid
     valid_irm_dataset = IRMDataset(
-        path="/data_a11/mayi/project/CAM/lst/utt_len",
-        path_sorted = "/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/snr_sorted",
+        path="../lst/utt_len",
+        path_sorted = "../lst/snr_sorted",
         sub=1,
-        spk="/data_a11/mayi/project/CAM/lst/val_spk.lst",
+        spk="../lst/val_spk.lst",
         batch_size=2,dur=5,
         sampling_rate=16000, mode="validation", max_size=100000, data=configs["data"])
     valid_loader = DataLoader(

@@ -10,7 +10,7 @@ mode = 'quality'
 if __name__ == "__main__":
     ## Dataloader
     applier_irm_dataset = IRMDataset(
-        path="/data_a11/mayi/project/CAM/lst/utt_vox1_enhancement",
+        path="/data_a11/mayi/project/CAM/lst/utt_dns",
         spk="/data_a11/mayi/project/CAM/lst/val_spk.lst",
         batch_size=1,dur=0,
         sampling_rate=16000, mode=mode, max_size=10000, data=mode)

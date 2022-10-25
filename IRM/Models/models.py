@@ -36,9 +36,7 @@ class BLSTM(nn.Module):
             in_features=self.output_dim,
             out_features=self.output_dim)
         self.activation = nn.Sigmoid()
-        #self.activation = nn.PReLU()
-        #self.activation = nn.Tanh()
-    def forward(self, X, x0, x1, x2, x3, x_frame):
+    def forward(self, X, x_frame):
         X = torch.cat((X,x_frame),dim=1) 
         X = X.permute(0,2,1)
         h0 = torch.zeros(2 * self.num_layers, X.size(0), self.hidden_size).float().cuda()
@@ -47,6 +45,5 @@ class BLSTM(nn.Module):
         self.stack_blstm.flatten_parameters()
         o, h = self.stack_blstm(X, (h0, c0))
         o = self.fconn(o)
-        #y_ = self.fconn2(o)
         y_ = self.activation(o)
         return y_.permute(0,2,1)

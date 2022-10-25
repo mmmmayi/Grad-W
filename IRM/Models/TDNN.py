@@ -85,33 +85,23 @@ class AAMsoftmax(nn.Module):
         super(AAMsoftmax, self).__init__()
         self.m = m
         self.s = s
-        #self.weight = torch.nn.Parameter(torch.FloatTensor(n_class, 192), requires_grad=True)
-        self.weight = torch.load('/data_a11/mayi/project/ECAPATDNN-analysis/exps/loss')
+        self.weight = torch.load('../lst/loss')
         self.weight.requires_grad = False
         self.ce = nn.CrossEntropyLoss()
-        #nn.init.xavier_normal_(self.weight, gain=1)
         self.cos_m = math.cos(self.m)
         self.sin_m = math.sin(self.m)
         self.th = math.cos(math.pi - self.m)
         self.mm = math.sin(math.pi - self.m) * self.m
 
     def forward(self, x, label=None):
-        #label = torch.LongTensor(label).cuda()
-        #torch.save(self.weight,'/data07/mayi/project/CAM/IRM/debug/weight')
         cosine = F.linear(F.normalize(x), F.normalize(self.weight))
         sine = torch.sqrt((1.0 - torch.mul(cosine, cosine)).clamp(0, 1))
         phi = cosine * self.cos_m - sine * self.sin_m
         phi = torch.where((cosine - self.th) > 0, phi, cosine - self.mm)
         one_hot = torch.zeros_like(cosine)
-        #print('label device:',label.device)
         one_hot.scatter_(1, label.view(-1, 1), 1)
         output = (one_hot * phi) + ((1.0 - one_hot) * cosine)
         output = output * self.s
-        #torch.save(output,'/data07/mayi/project/CAM/IRM/debug/output')
-
-        #return loss, prec1
-        #np.set_printoptions(threshold=np.inf)
-        #print(loss.detach().cpu().numpy())
         return output
     
 class SEModule_2d(nn.Module):
@@ -121,7 +111,6 @@ class SEModule_2d(nn.Module):
             nn.AdaptiveAvgPool2d(1),
             nn.Conv2d(channels, bottleneck, kernel_size=1, padding=0),
             nn.ReLU(),
-            # nn.BatchNorm1d(bottleneck), # I remove this layer
             nn.Conv2d(bottleneck, channels, kernel_size=1, padding=0),
             nn.Sigmoid(),
             )
@@ -210,29 +199,20 @@ class Speaker_TDNN(nn.Module):
         self.Mel_scale = torchaudio.transforms.MelScale(80,16000,20,7600,512//2+1).cuda()
 
     def forward(self, x, target_spk=None, mode='embedding'):
-        #x = self.Mel_scale(x.exp())+1e-6
-        #x = x.log()
         x = x - torch.mean(x, dim=-1, keepdim=True)
-        #torch.save(x,'/data07/mayi/project/CAM/IRM/debug/spec')
         x = self.conv1(x)
-        #torch.save(x,'/data07/mayi/project/CAM/IRM/debug/x')
         x = self.relu(x)
-        #torch.save(x,'/data07/mayi/project/CAM/IRM/debug/before')
         x = self.bn1(x)
         x0 = x
         x1 = self.layer1(x)
 
         x2 = self.layer2(x+x1)
-        #torch.save(x2,'/data07/mayi/project/CAM/IRM/debug/x2')
         x3 = self.layer3(x+x1+x2)
-        #torch.save(x3,'/data07/mayi/project/CAM/IRM/debug/x3')
 
         x = self.layer4(torch.cat((x1,x2,x3),dim=1))
 
         x = self.relu(x)
         x_frame = x
-        #torch.save(x[0],'/data07/mayi/project/CAM/IRM/debug/frame')
-        #return [x1, x2, x3, x]
         t = x.size()[-1]
         global_x = torch.cat((x,torch.mean(x,dim=2,keepdim=True).repeat(1,1,t), torch.sqrt(torch.var(x,dim=2,keepdim=True).clamp(min=1e-4)).repeat(1,1,t)), dim=1)
         w = self.attention(global_x)
@@ -242,11 +222,6 @@ class Speaker_TDNN(nn.Module):
         x = self.bn5(x)
         x = self.fc6(x)
         x = self.bn6(x)
-        #torch.save(x,'/data07/mayi/project/CAM/IRM/debug/embedding')
-        #quit()
-        #print(score.shape)
-        #print(target_spk.shape)
-        #quit()
         if mode=='feature':
             return x0, x1, x2, x3, x_frame
         elif mode == 'score':
@@ -255,80 +230,6 @@ class Speaker_TDNN(nn.Module):
  
             return result
         return x
-class ECAPA_TDNN(nn.Module):
-
-    def __init__(self, C=16):
-
-        super(ECAPA_TDNN, self).__init__()
-
-        #self.conv0 = nn.Conv2d(2, 1, 1)
-        self.conv1  = nn.Conv2d(1, C, kernel_size=5, stride=1, padding=2)
-        self.relu   = nn.ReLU()
-        self.bn1    = nn.InstanceNorm2d(C)#[n,c,h,w]
-        self.layer1 = Bottle2neck_2d(C, C, kernel_size=3, dilation=2, scale=8)
-        self.layer2 = Bottle2neck_2d(C, C, kernel_size=3, dilation=3, scale=8)
-        self.layer3 = Bottle2neck_2d(C, C, kernel_size=3, dilation=4, scale=8)
-        # I fixed the shape of the output from MFA layer, that is close to the setting from ECAPA paper.
-        self.layer4_ = nn.Conv2d(3*C, 1, kernel_size=1)
-        #self.layer5 = nn.Conv1d(1536, 80, kernel_size=1)
-        self.activation = nn.Sigmoid()
-
-        self.fea0  = nn.Conv1d(1024, 257, kernel_size=1)
-        self.fconv0 = nn.Conv2d(2, 1, kernel_size=1)
-        self.fbn0    = nn.InstanceNorm2d(1)
-
-        self.fea1  = nn.Conv1d(1024, 257, kernel_size=1)
-        self.fconv1 = nn.Conv2d(C+1, C, kernel_size=1)
-        self.fbn1    = nn.InstanceNorm2d(C)
-
-        self.fea2  = nn.Conv1d(1024, 257, kernel_size=1)
-        self.fconv2 = nn.Conv2d(C+1, C, kernel_size=1)
-        self.fbn2   = nn.InstanceNorm2d(C)
-
-        self.fea3  = nn.Conv1d(1024, 257, kernel_size=1)
-        self.fconv3 = nn.Conv2d(C+1, C, kernel_size=1)
-        self.fbn3   = nn.InstanceNorm2d(C)
-
-        self.fea4  = nn.Conv1d(1536, 257, kernel_size=1)
-        self.fconv4 = nn.Conv2d(3*C+1, C*3, kernel_size=1)
-        self.fbn4   = nn.InstanceNorm2d(C*3)
- 
-    def forward(self, x, fx0, fx1, fx2, fx3, fx_frame):
-        #x = self.conv0(x)
-        #B,C,H,W = x.shape
-        #x = x.reshape(B,H,W)
-        fx0 = self.fea0(fx0).unsqueeze(1)
-        x = torch.cat((fx0, x), dim=1)
-        x = self.fbn0(self.relu(self.fconv0(x)))
-
-        x = self.conv1(x)
-        x = self.relu(x)
-        x = self.bn1(x)
-
-        fx1 = self.fea1(fx1).unsqueeze(1)
-        fx1 = torch.cat((fx1,x), dim=1)
-        fx1 = self.fbn1(self.relu(self.fconv1(fx1)))
-        x1 = self.layer1(fx1)
-
-        fx2 = self.fea2(fx2).unsqueeze(1)
-        fx2 = torch.cat((fx2,x+x1), dim=1)
-        fx2 = self.fbn2(self.relu(self.fconv2(fx2)))
-        x2 = self.layer2(fx2)
-
-        fx3 = self.fea3(fx3).unsqueeze(1)
-        fx3 = torch.cat((fx3,x+x1+x2), dim=1)
-        fx3 = self.fbn3(self.relu(self.fconv3(fx3)))
-        x3 = self.layer3(fx3)
-
-        x4 = torch.cat((x1,x2,x3),dim=1)
-        fx_frame = self.fea4(fx_frame).unsqueeze(1)
-        fx_frame = torch.cat((fx_frame,x4), dim=1)
-        x4 = self.fbn4(self.relu(self.fconv4(fx_frame)))
-        x = self.layer4_(x4)
-
-        x = self.activation(x)
-
-        return x
 
 class multi_TDNN(nn.Module):
     
@@ -336,15 +237,8 @@ class multi_TDNN(nn.Module):
         super(multi_TDNN, self).__init__()
         
         self.module = BLSTM(configs)
-        path = '/data_a11/mayi/project/ECAPATDNN-analysis/exps/pretrain.model'
+        path = '../exps/pretrain.model'
         loaded_state = torch.load(path)
-        #self_state = self.module.state_dict()
-        #for name, param in loaded_state.items():
-            #if name not in self_state:
-                #name = name.replace("speaker_encoder.","")
-                #if name not in self_state:
-                    #continue
-            #self_state[name].copy_(param)
         self.speaker = Speaker_TDNN()
         self_state = self.speaker.state_dict()
         for name, param in loaded_state.items():
@@ -356,33 +250,12 @@ class multi_TDNN(nn.Module):
         for p in self.speaker.parameters():
             p.requires_grad = False
         self.speaker.eval()
-        #self.conv1  = nn.Conv1d(1024, 80, kernel_size=1)
-        #self.conv2  = nn.Conv1d(1024, 80, kernel_size=1)
-        #self.conv3  = nn.Conv1d(1024, 80, kernel_size=1)
     def forward(self,input_spk, input, target_spk=None):
         self.speaker.eval()
        
         self.mask = []
         with torch.no_grad():
             x0, x1, x2, x3, x_frame = self.speaker(input_spk, target_spk, mode='feature')
-        #x1 = self.conv1(x1).unsqueeze(1)
-        #x2 = self.conv2(x2).unsqueeze(1)
-        #x3 = self.conv3(x3).unsqueeze(1)
-        mask = self.module(input, x0, x1, x2, x3, x_frame) #range of mask is [0,1]
-        #print(mask_max)
-        #quit()
-        #mask_contribution = (mask_contribution-mask_min)/(mask_max-mask_min)
-        #mask_nor = 1-mask
-        #x_nor = (mask_nor+0.5).log()+input
-        
-        #mask_min = torch.amin(mask,dim=(1,2)).unsqueeze(-1).unsqueeze(-1)
-        #mask_max = torch.amax(mask,dim=(1,2)).unsqueeze(-1).unsqueeze(-1)
-        #mask_modulate = (mask-mask_min)/(mask_max-mask_min)
-        #x = (mask_modulate+0.5).log()+input.reshape(B,H,W)
-        #plt.savefig('debug.png')
-        #if target is not None:
-            #emb_gt = self.speaker(target, target_spk)
-            #emb = self.speaker(x,target_spk)
-            #return mask, mask_contribution, emb_gt, emb
+        mask = self.module(input, x_frame) #range of mask is [0,1]
 
         return mask

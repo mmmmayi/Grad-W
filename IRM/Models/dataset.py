@@ -32,7 +32,7 @@ class IRMDataset(Dataset):
             self.noisy_data, self.noisy_label= generate_test(path, mode, spk)
         index = -1
         self.batch_data = []
-        self.labels = torch.load('/data_a11/mayi/project/ECAPATDNN-analysis/speaker.pt')
+        self.labels = torch.load('../lst/speaker.pt')
         number_of_minibathes = math.ceil(len(self.noisy_data) / batch_size)
         for _ in range(number_of_minibathes):
             if index>=len(self.noisy_data)-batch_size:
@@ -40,11 +40,8 @@ class IRMDataset(Dataset):
             self.batch_data.append([])
             for _ in range(batch_size):   
                 index = index+1
-                #if self.mode in ['train','validation']:
-                    #self.batch_data[-1].append([self.noisy_data[index],self.noisy_label[index]])
-                #else:
                 self.batch_data[-1].append([self.noisy_data[index],self.noisy_label[index]])
-        with open ('/data_a11/mayi/dataset/musan/file_list', 'r') as f:
+        with open ('../lst/file_list', 'r') as f:
             self.noise_list=f.readlines()
         self.noise_num= len (self.noise_list)
 
@@ -61,52 +58,23 @@ class IRMDataset(Dataset):
         clean_input, noise_input = [],[]
         noisy_input, target_spk = [],[]
         check = []
-        #print('============')
-        #print(idx)
         
         for pairs in self.batch_data[idx]:
-            #print(pairs)
             check.append(pairs[0])
             audio, _  = soundfile.read(pairs[0])
-            #clean_path = pairs[0].replace('noisy_split','aac_split')
-            #clean_audio, _  = soundfile.read(clean_path)
             if self.mode == 'quality':
                 input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
-                #clean_path = pairs[0].replace('/noisy/','/clean/')
-                #wav_name = pairs[0].split('/')[-1]
-                #subs = wav_name.split('_')
-                #new_name = 'clean_'+subs[-2]+'_'+subs[-1]
-                #clean_path = clean_path.replace(wav_name,new_name)
-                clean_path = pairs[0].replace('IRM/vox1_enhancement','VoxCeleb_latest/VoxCeleb1/wav')
+                clean_path = pairs[0].replace('/noisy/','/clean/')
+                wav_name = pairs[0].split('/')[-1]
+                subs = wav_name.split('_')
+                new_name = 'clean_'+subs[-2]+'_'+subs[-1]
+                clean_path = clean_path.replace(wav_name,new_name)
                 clean_audio, _  = soundfile.read(clean_path)
                 clean_tensor = torch.FloatTensor(np.stack([clean_audio],axis=0))
                 return input_tensor, clean_tensor
 
             spk = pairs[1].split('/')[-3]
             target_category = torch.tensor(int(self.labels[spk]))
-
-            if self.mode in ['noisy_single']:
-                target_spk.append(target_category)
-                input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
-                clean_path = pairs[0].replace('IRM/mix','VoxCeleb_latest/VoxCeleb2/dev/aac_split')
-                clean_audio, _  = soundfile.read(clean_path)
-                clean_tensor = torch.FloatTensor(np.stack([clean_audio],axis=0))
-                
-                return input_tensor, torch.stack(target_spk), clean_tensor, pairs[0]
-
-            if self.mode in ['clean_multi','noisy_multi']:
-                target_spk.append(target_category)
-                max_audio = 300 * 160 + 240
-                if audio.shape[0] <= max_audio:
-                    shortage = max_audio - audio.shape[0]
-                    audio = np.pad(audio, (0, shortage), 'wrap')
-                feats = []
-                startframe = np.linspace(0, audio.shape[0]-max_audio, num=5)
-                for asf in startframe:
-                    feats.append(audio[int(asf):int(asf)+max_audio])
-                feats = np.stack(feats, axis = 0).astype(np.float)
-                input_tensor = torch.FloatTensor(feats)
-                return input_tensor, pairs[1], torch.stack(target_spk)
 
             if self.mode=='train':
                 noise = self.generate_noise(audio)
@@ -198,8 +166,6 @@ def generate(path,mode):
         idx = int(spk[2:])
         num = str(idx//200)
         
-        #clean_data.append(os.path.join('/mayi/VoxCeleb_latest/VoxCeleb2/dev/aac_split/',num,i))
-        #clean_label.append(os.path.join('/mayi/mask/clean_gradient_input/',num,i))
         if mode=='train':
             noisy_data.append(os.path.join('/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/aac_split',num,i))
         else:
@@ -216,8 +182,7 @@ def generate_test(path, mode, spk_list=None):
         item = line.strip('\n')
         utt = item.split(' ')[0]
         if mode=='quality':
-            data.append(os.path.join('/data_a11/mayi/dataset/IRM/vox1_enhancement',utt))
-            #data.append(os.path.join('/data_a11/mayi/dataset/DNS-test/DNS-Challenge/datasets/test_set/synthetic/with_reverb/noisy',utt)) 
+            data.append(os.path.join('/data_a11/mayi/dataset/DNS-test/DNS-Challenge/datasets/test_set/synthetic/no_reverb/noisy',utt))
             line = f.readline()
             name.append(utt)
             continue
@@ -229,13 +194,10 @@ def generate_test(path, mode, spk_list=None):
             line = f.readline()
             continue
         if mode in ['clean_single', 'clean_multi']:
-            #data.append(os.path.join('/mayi/VoxCeleb_latest/VoxCeleb2/dev/aac_split/', num, utt))
             data.append(os.path.join('/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/aac_split/', num, utt))
-            #name.append(os.path.join('/data_a11/mayi/mask/noisy_gradient_input/',num,utt.replace('.wav','.pt')))
 
         elif mode in ['noisy_single', 'noisy_multi', 'validation']:
             data.append(os.path.join('/data_a11/mayi/dataset/IRM/mix', num, utt))
-            #name.append(os.path.join('/data_a11/mayi/mask/noisy_gradient_input/',num,utt.replace('.wav','.pt')))
         else:
             print('bug in dataloader')
             quit()
