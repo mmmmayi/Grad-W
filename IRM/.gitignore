@@ -1,0 +1,13 @@
+*.swo
+*.swp
+*.model
+*.pyc
+*.txt
+*.png
+*.out
+*.pt
+**/runs/**
+**/exp/**
+**/debug*/**
+**/decompose*/**
+**/continue*/**
