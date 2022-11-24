@@ -32,7 +32,7 @@ class IRMDataset(Dataset):
             self.noisy_data, self.noisy_label= generate_test(path, mode, spk)
         index = -1
         self.batch_data = []
-        self.labels = torch.load('../lst/speaker.pt')
+        self.labels = torch.load('../lst/resnet_speaker.pt')
         number_of_minibathes = math.ceil(len(self.noisy_data) / batch_size)
         for _ in range(number_of_minibathes):
             if index>=len(self.noisy_data)-batch_size:

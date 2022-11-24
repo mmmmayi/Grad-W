@@ -8,7 +8,7 @@ import time
 import os, torchaudio
 import numpy as np
 from Models.models import PreEmphasis
-from Models.TDNN import Speaker_TDNN
+from Models.TDNN import Speaker_TDNN, Speaker_resnet, ArcMarginProduct
 import tools.utils as utils
 from tools.logger import get_logger
 from torch.utils.tensorboard import SummaryWriter
@@ -59,16 +59,12 @@ class IRMTrainer():
         self.writer = SummaryWriter(comment=comment)
         self.logger = get_logger(f"{self.PROJECT_DIR}/LOG")
         self.logger.info(self.config)
-        self.speaker = Speaker_TDNN().cuda()
-        self_state = self.speaker.state_dict()
-        path = '../exps/pretrain.model'
-        loaded_state = torch.load(path)
-        for name, param in loaded_state.items():
-            if name not in self_state:
-                name = name.replace("speaker_encoder.","")
-                if name not in self_state:
-                    continue
-            self_state[name].copy_(param)
+        self.speaker = Speaker_resnet().cuda()
+        projection = ArcMarginProduct().cuda()
+        self.speaker.add_module("projection", projection)
+        path = 'exp/resnet.pt'
+        checkpoint = torch.load(path)
+        self.speaker.load_state_dict(checkpoint, strict=False)
         for p in self.speaker.parameters():
             p.requires_grad = False
         self.speaker.eval()
@@ -117,9 +113,9 @@ class IRMTrainer():
             clean = clean.reshape(B,W).cuda()
             target_spk = target_spk.reshape(B)
             with torch.no_grad():
-                Xb = self.pre(Xb)
+                #Xb = self.pre(Xb)
                 Xb = (self.Spec(Xb)+1e-8).log()           
-                clean = self.pre(clean)
+                #clean = self.pre(clean)
                 clean = (self.Spec(clean)+1e-8).log()     
  
                 frame_len = Xb.shape[-1]
@@ -133,6 +129,8 @@ class IRMTrainer():
                 Xb_input = (Xb-self.mean)/self.std
  
             score = self.speaker(feature, target_spk.cuda(), 'score')
+            #print(score.shape) #[128]
+            #print(feature.shape) #[128,80,401]
             self.speaker.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             

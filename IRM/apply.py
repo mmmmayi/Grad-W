@@ -28,5 +28,6 @@ if __name__ == "__main__":
         model_path=MODEL_PATH,
         applier_dl=applier_loader,
         mode = mode)
-    irm_applier.restore()
-    irm_applier.quality()
+#    irm_applier.restore()
+#    irm_applier.quality()
+    irm_applier.apply()

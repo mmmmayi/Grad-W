@@ -44,7 +44,7 @@ class IRMApplier():
         self.model.eval()
         self.speaker = Speaker_TDNN().cuda()
         self_state = self.speaker.state_dict()
-        path = '../exps/pretrain.model'
+        path = '../exp/pretrain.model'
         loaded_state = torch.load(path)
         for name, param in loaded_state.items():
             if name not in self_state:
@@ -194,86 +194,60 @@ class IRMApplier():
 
     #@torch.no_grad()
     def apply(self):
-        total_files = len(self.applier_dataloader)
-        loss_fn = nn.MSELoss(reduction='sum')
-        error_sum_origin, error_sum_target = 0,0
-        #file = open(os.path.join(self.PROJECT_DIR,'x'),'w')
-        #print(len(self.applier_dataloader))
-        for sample_batched in tqdm(self.applier_dataloader):
-            
-            # Load data from validation_dataloader
-            Xb, target_spk, clean, info = sample_batched
-            target_spk = target_spk.reshape(1)
-            assert Xb.size()[0] == 1, "The batch size of validation dataloader must be 1."
-            if Xb.size()[1]==1:
-                Xb = Xb.reshape(1,Xb.size()[-1]).cuda()
-                clean = clean.reshape(1,Xb.size()[-1]).cuda()
+        eval_path = '/data_a11/mayi/dataset/IRM/mix'
+        eval_list = '/data_a11/mayi/project/ECAPATDNN-analysis/sub_vox2.txt'
+        clean_path = '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/aac_split'
+        self.labels = torch.load('/data_a11/mayi/project/ECAPATDNN-analysis/speaker.pt')
+        lines = open(eval_list).read().splitlines()
+        files = []
+        for line in lines:
+            files.append(line.split()[1])
+            files.append(line.split()[2])
+        setfiles = list(set(files))
+        setfiles.sort()
+        for i, file in tqdm(enumerate(setfiles), total = len(setfiles)):
 
-            else:
-                Xb = Xb.squeeze().cuda()
-            
+            # Load data from validation_dataloader
+            spk = file.split('/')[0]
+            idx = int(spk[2:])
+            num = str(idx//200)
+
+            audio, _  = soundfile.read(os.path.join(eval_path, num,file))
+            Xb = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
+            audio, _  = soundfile.read(os.path.join(clean_path, num,file))
+            clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             Xb = self.pre(Xb)
             clean = self.pre(clean)
             #Xb = (self.MelSpec(Xb)+1e-6)
             Xb = (self.Spec(Xb)+1e-8).log()
             Xb_input = (Xb-self.mean)/self.std
             clean = (self.Spec(clean)+1e-8).log()
-            feature = clean.requires_grad_()
-            
-            score = self.speaker(feature, target_spk.cuda(), 'score')
-            self.speaker.zero_grad()
-            yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            #yb = self.vari_sigmoid(yb,1)
-            B,H,W = yb.shape
+            mel_n = (self.Mel_scale(Xb.exp())+1e-6).log()
 
+            mel_c = (self.Mel_scale(clean.exp())+1e-6).log()
+            target_spk = torch.stack([torch.tensor(int(self.labels[file.split('/')[-3]]))])
 
-            
-            info = info[0].split('/')
-            idx = int(info[-3][2:])
-            num = str(idx//200)
-            
-            #truth = torch.load(os.path.join('/data_a11/mayi/dataset/noisy_gradient_input',num,info[0],info[1],info[2].replace('.wav','.pt')))
-            #truth = torch.load(os.path.join('/mayi/mask/clean_gradient_input/',num,info[0],info[1],info[2].replace('.wav','.pt')))
+            cam = self.model(mel_n, Xb_input, target_spk)
+            pred_spec = (cam+1e-8).log()+Xb
+            pred_mel = (self.Mel_scale(pred_spec.exp())+1e-6).log()
 
-            #cam_gt = (truth_norm+1e-6).log()+Xb
-            #Xb_input = Xb_input.unsqueeze(1)
-            cam = self.model(Xb, Xb_input, target_spk)
-            
-            #repre, target_repre, mask = self.model(Xb,cam_gt)
-            #print('with origin:',self.loss(repre,origin))
-            #print('with target:',self.loss(repre,target_repre))
-            #file.write('with origin:'+str(self.loss(repre,origin).item())+'\n')
-            #file.write('with target:'+str(self.loss(repre,target_repre).item())+'\n')
-            #file.write('=========='+'\n')
-            #error_sum_origin += self.loss(repre,origin).item()
-            #error_sum_target += self.loss(repre,target_repre).item()
-            #continue
-            if not os.path.exists(os.path.join(self.PROJECT_DIR,num,info[-3],info[-2])):
-                os.makedirs(os.path.join(self.PROJECT_DIR,num,info[-3],info[-2]))
-            torch.save(cam, os.path.join(self.PROJECT_DIR,num,info[-3],info[-2],info[-1].replace('.wav','.pt'))) 
-            continue
-            m = nn.Sigmoid()
-            #yb_ = yb.detach().cpu().squeeze()
-            #yb_ = np.sort(yb_,axis=None).squeeze()
-            #x = np.arange(len(yb_))
-            #plt.scatter(x,yb_)
-            #plt.savefig(os.path.join(self.PROJECT_DIR,num,info[-3],info[-2],info[-1].replace('.wav','sort2.png')))
-            #plt.close()
-            
-            fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
-            #librosa.display.specshow(Xb1.squeeze().detach().cpu().numpy(),x_axis=None, ax=ax[0])
-            #librosa.display.specshow(Xb2.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-            librosa.display.specshow(Xb.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+            if not os.path.exists(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2])):
+                os.makedirs(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2]))
+            fig, ax = plt.subplots(nrows=2, ncols=2, sharex=True)
+            min = torch.min(mel_c)
+            max = torch.max(mel_c)
+            librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
 
-            #librosa.display.specshow(target_repre.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-            librosa.display.specshow(clean.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-            #librosa.display.specshow(((cam+1e-8).log()+Xb).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-            img2 = librosa.display.specshow(cam.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+            librosa.display.specshow(mel_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,1])
 
-            #librosa.display.specshow(irm.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[3])
-            #fig.colorbar(img2, ax=ax)
-            plt.savefig(os.path.join(self.PROJECT_DIR,num,info[-3],info[-2],info[-1].replace('.wav','.png')))
+            librosa.display.specshow(pred_spec.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,0], vmin=min,vmax=max)
+            librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
+
+            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','.png')))
             plt.close()
-            quit()
-        #file.write('mse on origin'+str(error_sum_origin/len(self.applier_dataloader))+'\n')
-        #file.write('mse on target'+str(error_sum_target/len(self.applier_dataloader))+'\n')
+ 
+
+
+
+
+

@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 
 ## Set up project dir
-PROJECT_DIR = "exp/dysnr_enhanceDisto1e8norm_BLSTM_frame_0.001_adadelta_4s_wada0.1_th0.1"
+PROJECT_DIR = "exp/resnet"
 
 ## Config
 configs = {
@@ -23,7 +23,7 @@ configs = {
     "output_dim": 257,
     "num_layers": 3,        
     "num_epochs": 100,
-    "batchsize": 128,
+    "batchsize": 64,
     "data": 'noisy',
     "dur": 4,
     "weight": 100000000,
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     if configs['resume_epoch'] is not None:
         nnet = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
     else:
-        nnet = multi_TDNN(configs)
+        nnet = multi_TDNN(configs, 'resnet')
     #print('Learnable parameters of the model:')
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
