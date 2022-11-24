@@ -1,1 +1,0 @@
-11-15 15:44 [MainProcess, 2006440] [INFO ]  {'input_dim': 1793, 'hidden_units': 128, 'output_dim': 257, 'num_layers': 3, 'num_epochs': 100, 'batchsize': 128, 'data': 'noisy', 'dur': 4, 'weight': 100000000, 'resume_epoch': None, 'ratio': 0.1, 'optimizer': {'lr': 0.001, 'beta1': 0.0, 'beta2': 0.9}}
