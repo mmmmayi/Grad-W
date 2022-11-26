@@ -41,7 +41,7 @@ class IRMDataset(Dataset):
             for _ in range(batch_size):   
                 index = index+1
                 self.batch_data[-1].append([self.noisy_data[index],self.noisy_label[index]])
-        with open ('../lst/file_list', 'r') as f:
+        with open ('/data_a11/mayi/dataset/musan/file_list', 'r') as f:
             self.noise_list=f.readlines()
         self.noise_num= len (self.noise_list)
 

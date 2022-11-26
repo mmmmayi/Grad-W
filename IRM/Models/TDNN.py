@@ -158,7 +158,7 @@ class Speaker_TDNN(nn.Module):
         x = self.fc6(x)
         x = self.bn6(x)
         if mode=='feature':
-            return x0, x1, x2, x3, x_frame
+            return x_frame
         elif mode == 'score':
             score = self.speaker_loss.forward(x,target_spk)
             result = torch.gather(score,1,target_spk.unsqueeze(1).long()).squeeze()
