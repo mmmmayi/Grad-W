@@ -48,8 +48,8 @@ class IRMTrainer():
         if not os.path.exists(f"{self.PROJECT_DIR}/models"):
             os.makedirs(f"{self.PROJECT_DIR}/models")
         
-        self.mean = torch.load("../lst/mean.pt").float().cuda()
-        self.std = torch.load("../lst/std.pt").float().cuda()
+        self.mean = torch.load("exp/resnet_mean.pt").float().cuda()
+        self.std = torch.load("exp/resnet_mean.pt").float().cuda()
 
         self.mean = self.mean.reshape(1,257,1)
         self.std = self.std.reshape(1,257,1)
@@ -226,7 +226,7 @@ class IRMTrainer():
         self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
         self.logger.info("Epoch:{}, average loss = {}".format(epoch, ave_cos_loss+ave_mse_loss))
 
-    def _get_global_mean_variance(self,mag_type):
+    def _get_global_mean_variance(self):
         mean = 0.0
         variance = 0.0
         N_ = 0
@@ -234,9 +234,9 @@ class IRMTrainer():
 
             # Load data from trainloader
 
-            Xb, _ = sample_batched
+            Xb, target_spk, clean, check = sample_batched
             Xb = Xb.squeeze().cuda()
-            Xb = self.pre(Xb)
+            #Xb = self.pre(Xb)
             Xb = (self.Spec(Xb)+1e-8).log()
             N_ += Xb.size(0)
             mean += Xb.mean(2).sum(0)
@@ -246,8 +246,8 @@ class IRMTrainer():
         standard_dev = torch.sqrt(variance)
 
         # Save global mean/var
-        torch.save(mean,"/data_a11/mayi/project/CAM/IRM/exp/mean.pt")
-        torch.save(standard_dev,"/data_a11/mayi/project/CAM/IRM/exp/std.pt")
+        torch.save(mean,"/data_a11/mayi/project/SIP/IRM/exp/resnet_mean.pt")
+        torch.save(standard_dev,"/data_a11/mayi/project/SIP/IRM/exp/resnet_std.pt")
 
 
     def train(self, weight, resume_epoch=None):

@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 
 ## Set up project dir
-PROJECT_DIR = "exp/resnet_0"
+PROJECT_DIR = "exp/resnet"
 
 ## Config
 configs = {
@@ -26,7 +26,7 @@ configs = {
     "batchsize": 64,
     "data": 'noisy',
     "dur": 4,
-    "weight": 0,
+    "weight": 100000000,
     "resume_epoch":None,
     "ratio":0.1,
     "optimizer": {
@@ -94,5 +94,5 @@ if __name__ == "__main__":
         project_dir=PROJECT_DIR,
         model=nnet, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,BCE_loss], dur = configs["dur"],
         train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"])
-    #irm_trainer._get_global_mean_variance(configs["data"])
-    irm_trainer.train(configs["weight"], configs["resume_epoch"])
+    irm_trainer._get_global_mean_variance()
+    #irm_trainer.train(configs["weight"], configs["resume_epoch"])

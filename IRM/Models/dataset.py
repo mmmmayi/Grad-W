@@ -64,11 +64,12 @@ class IRMDataset(Dataset):
             audio, _  = soundfile.read(pairs[0])
             if self.mode == 'quality':
                 input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
-                clean_path = pairs[0].replace('/noisy/','/clean/')
-                wav_name = pairs[0].split('/')[-1]
-                subs = wav_name.split('_')
-                new_name = 'clean_'+subs[-2]+'_'+subs[-1]
-                clean_path = clean_path.replace(wav_name,new_name)
+                #clean_path = pairs[0].replace('/noisy/','/clean/')
+                #wav_name = pairs[0].split('/')[-1]
+                #subs = wav_name.split('_')
+                #new_name = 'clean_'+subs[-2]+'_'+subs[-1]
+                #clean_path = clean_path.replace(wav_name,new_name)  
+                clean_path = pairs[0].replace(pairs[0].split('/')[-4],'wav')
                 clean_audio, _  = soundfile.read(clean_path)
                 clean_tensor = torch.FloatTensor(np.stack([clean_audio],axis=0))
                 return input_tensor, clean_tensor
@@ -182,7 +183,18 @@ def generate_test(path, mode, spk_list=None):
         item = line.strip('\n')
         utt = item.split(' ')[0]
         if mode=='quality':
-            data.append(os.path.join('/data_a11/mayi/dataset/DNS-test/DNS-Challenge/datasets/test_set/synthetic/no_reverb/noisy',utt))
+            data.append(os.path.join('/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr0',utt))
+            name.append(utt)
+            data.append(os.path.join('/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr5',utt))
+            name.append(utt)
+            data.append(os.path.join('/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr10',utt))
+            name.append(utt)
+            data.append(os.path.join('/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr15',utt))
+            name.append(utt)
+            data.append(os.path.join('/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr20',utt))
+
+
+            #data.append(os.path.join('/data_a11/mayi/dataset/DNS-test/DNS-Challenge/datasets/test_set/synthetic/no_reverb/noisy',utt))
             line = f.readline()
             name.append(utt)
             continue

@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH -o resnet_0.out
+#SBATCH -o resnet.out
 #SBATCH --gres=gpu:1
-#SBATCH -w ttnusa7
+#SBATCH -w ttnusa8
 #SBATCH --cpus-per-task=8
 ####SBATCH -p new
 python train.py

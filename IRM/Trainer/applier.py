@@ -1,7 +1,7 @@
 import os, torchaudio, soundfile,csv
 from pystoi import stoi
 from pypesq import pesq 
-from tqdm import tqdm
+import tqdm
 import torch
 import librosa
 import librosa.display
@@ -33,8 +33,8 @@ class IRMApplier():
         # Init Output folder
         self.PROJECT_DIR = project_dir
         
-        self.mean = torch.load("../lst/mean.pt").float().cuda()
-        self.std = torch.load("../lst/std.pt").float().cuda()
+        self.mean = torch.load("exp/resnet_mean.pt").float().cuda()
+        self.std = torch.load("exp/resnet_mean.pt").float().cuda()
         self.mean = self.mean.reshape(1,257,1)
         self.std = self.std.reshape(1,257,1)
         
@@ -191,6 +191,198 @@ class IRMApplier():
         print('SISNR:{}, SISNR_before:{}'.format(str(SISNR/num), str(SISNR_before/num))+'\n')
         print('PESQ:{}, PESQ_before:{}'.format(str(PESQ/num), str(PESQ_before/num))+'\n')
         print('STOI:{}, STOI_before:{}'.format(str(STOI/num), str(STOI_before/num))+'\n')
+
+    def quality_vox1(self):
+        num_0, num_5, num_10, num_15, num_20 = 1,1,1,1,1
+        SISNR, SISNR_before, PESQ, PESQ_before, STOI, STOI_before, num= 0,0,0,0,0,0,0
+        SISNR_0, SISNR_before_0 = 0,0
+        PESQ_before_0, PESQ_0 = 0,0
+        STOI_0, STOI_before_0 = 0,0
+
+        SISNR_5, SISNR_before_5 = 0,0
+        PESQ_before_5, PESQ_5 = 0,0
+        STOI_5, STOI_before_5 = 0,0
+
+        SISNR_10, SISNR_before_10 = 0,0
+        PESQ_before_10, PESQ_10 = 0,0
+        STOI_10, STOI_before_10 = 0,0
+
+        SISNR_15, SISNR_before_15 = 0,0
+        PESQ_before_15, PESQ_15 = 0,0
+        STOI_15, STOI_before_15 = 0,0
+
+        SISNR_20, SISNR_before_20 = 0,0
+        PESQ_before_20, PESQ_20 = 0,0
+        STOI_20, STOI_before_20 = 0,0
+        score = []
+        total_files = len(self.applier_dataloader)
+        for sample_batched in tqdm.tqdm(self.applier_dataloader):
+            Xb, clean = sample_batched
+            #info = info[0].split('/')
+            #idx = int(info[-3][2:])
+            #num = str(idx//200)
+
+            #target_spk = target_spk.reshape(1)
+            assert Xb.size()[0] == 1, "The batch size of validation dataloader must be 1."
+            Xb = Xb.reshape(1,Xb.size()[-1]).cuda()
+            clean = clean.reshape(1,Xb.size()[-1]).cuda()
+            noisy = Xb
+            speech = clean
+            clean = self.pre(clean)
+            clean = (self.Spec(clean)+1e-8).log()
+            Xb = self.pre(Xb)
+            Xb = (self.Spec(Xb)+1e-8).log()
+            mel_n = (self.Mel_scale(Xb.exp())+1e-6).log()
+
+            Xb_input = (Xb-self.mean)/self.std
+            cam = self.model(mel_n, Xb_input, Xb)
+            enhanced_spec = (cam+1e-8).log()+Xb
+
+            #if not os.path.exists(os.path.join(self.PROJECT_DIR,num,info[-3],info[-2])):
+                #os.makedirs(os.path.join(self.PROJECT_DIR,num,info[-3],info[-2]))
+            waveform = self.lps2wav(cam, noisy).detach().cpu().numpy().squeeze()
+
+            #soundfile.write(os.path.join(self.PROJECT_DIR,num,info[-3],info[-2],info[-1]), waveform, 16000)
+
+            enhanced_signal = waveform
+            noisy = noisy.detach().cpu().numpy().squeeze()
+            speech = speech.detach().cpu().numpy().squeeze()
+            try:
+                snr, seg_snr = self.compute_segsnr(speech,enhanced_signal, sr=16000)
+                s = stoi(speech, enhanced_signal, 16000, extended=False)
+                p = pesq(speech,enhanced_signal,16000)
+            #sdr, _, _, _ = bss_eval_sources(clean_signal, enhanced_signal)
+                sisnr = self.compute_SISNR(speech,enhanced_signal)
+
+                snr_before, _ = self.compute_segsnr(speech, noisy,sr=16000)
+                s_before = stoi(speech, noisy, 16000, extended=False)
+                p_before = pesq(speech, noisy,16000)
+                sisnr_before = self.compute_SISNR(speech, noisy)
+            #sdr_before, _, _, _ = bss_eval_sources(clean_signal,mix_signal)
+            except:
+
+                print(enhanced_signal)
+            if True:
+                if abs(snr_before-0)<1:
+                    num_0 = num_0+1
+
+                    SISNR_0 = SISNR_0+sisnr
+                    PESQ_0 = PESQ_0+p
+
+                    STOI_0 = STOI_0+s
+                    SISNR_before_0 = SISNR_before_0+sisnr_before
+                    PESQ_before_0 = PESQ_before_0+p_before
+
+                    STOI_before_0 = STOI_before_0+s_before
+                elif abs(snr_before-5)<1:
+                    num_5 = num_5+1
+                    SISNR_5 = SISNR_5+sisnr
+
+                    PESQ_5 = PESQ_5+p
+
+                    STOI_5 = STOI_5+s
+                    SISNR_before_5 = SISNR_before_5+sisnr_before
+                    PESQ_before_5 = PESQ_before_5+p_before
+
+                    STOI_before_5 = STOI_before_5+s_before
+
+                elif abs(snr_before-10)<1:
+                    num_10 = num_10+1
+                    SISNR_10 = SISNR_10+sisnr
+
+                    PESQ_10 = PESQ_10+p
+
+                    STOI_10 = STOI_10+s
+                    SISNR_before_10 = SISNR_before_10+sisnr_before
+                    PESQ_before_10 = PESQ_before_10+p_before
+
+                    STOI_before_10 = STOI_before_10+s_before
+
+                elif abs(snr_before-15)<1:
+                    num_15 = num_15+1
+                    SISNR_15 = SISNR_15+sisnr
+
+                    PESQ_15 = PESQ_15+p
+
+                    STOI_15 = STOI_15+s
+                    SISNR_before_15 = SISNR_before_15+sisnr_before
+                    PESQ_before_15 = PESQ_before_15+p_before
+
+                    STOI_before_15 = STOI_before_15+s_before
+
+                elif abs(snr_before-20)<1:
+                    num_20 = num_20+1
+                    SISNR_20 = SISNR_20+sisnr
+
+                    PESQ_20 = PESQ_20+p
+
+                    STOI_20 = STOI_20+s
+                    SISNR_before_20 = SISNR_before_20+sisnr_before
+                    PESQ_before_20 = PESQ_before_20+p_before
+
+                    STOI_before_20 = STOI_before_20+s_before
+
+                else:
+                    print('bug exist'+str(snr_before))
+
+            else:
+                SISNR+=sisnr
+                SISNR_before+=sisnr_before
+                PESQ+=p
+                PESQ_before+=p_before
+                STOI+=s
+                STOI_before+=s_before
+                num+=1
+        score.append({
+                    'sisnr_0': SISNR_0/num_0,
+                    'sisnr_before_0':SISNR_before_0/num_0,
+                    'PESQ_0': PESQ_0/num_0,
+                    'PESQ_before_0':  PESQ_before_0/num_0,
+                    'STOI_0':STOI_0/num_0,
+                    'STOI_before_0':STOI_before_0/num_0,
+
+                    'sisnr_5': SISNR_5/num_5,
+                    'sisnr_before_5':SISNR_before_5/num_5,
+                    'PESQ_5': PESQ_5/num_5,
+                    'PESQ_before_5':  PESQ_before_5/num_5,
+                    'STOI_5':STOI_5/num_5,
+                    'STOI_before_5':STOI_before_5/num_5,
+
+                    'sisnr_10': SISNR_10/num_10,
+                    'sisnr_before_10':SISNR_before_10/num_10,
+                    'PESQ_10': PESQ_10/num_10,
+                    'PESQ_before_10': PESQ_before_10/num_10,
+                    'STOI_10':STOI_10/num_10,
+                    'STOI_before_10':STOI_before_10/num_10,
+
+                    'sisnr_15': SISNR_15/num_15,
+                    'sisnr_before_15':SISNR_before_15/num_15,
+                    'PESQ_15': PESQ_15/num_15,
+                    'PESQ_before_15': PESQ_before_15/num_15,
+                    'STOI_15':STOI_15/num_15,
+                    'STOI_before_15':STOI_before_15/num_15,
+
+                    'sisnr_20': SISNR_20/num_20,
+                    'sisnr_before_20':SISNR_before_20/num_20,
+                    'PESQ_20': PESQ_20/num_20,
+                    'PESQ_before_20': PESQ_before_20/num_20,
+                    'STOI_20':STOI_20/num_20,
+                    'STOI_before_20':STOI_before_20/num_20
+
+
+                })
+        csv_rows= ['sisnr_0', 'sisnr_before_0', 'PESQ_0', 'PESQ_before_0', 'STOI_0', 'STOI_before_0', 'sisnr_5', 'sisnr_before_5', 'PESQ_5', 'PESQ_before_5', 'STOI_5', 'STOI_before_5', 'sisnr_10', 'sisnr_before_10', 'PESQ_10', 'PESQ_before_10', 'STOI_10', 'STOI_before_10', 'sisnr_15', 'sisnr_before_15', 'PESQ_15', 'PESQ_before_15', 'STOI_15', 'STOI_before_15', 'sisnr_20', 'sisnr_before_20', 'PESQ_20', 'PESQ_before_20', 'STOI_20', 'STOI_before_20']
+        if not os.path.exists(self.PROJECT_DIR):
+            os.makedirs(self.PROJECT_DIR)
+        csv_file = os.path.join(self.PROJECT_DIR,'quality_vox1.csv')
+        with open(csv_file, 'w') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=csv_rows)
+            writer.writeheader()
+            for data in score:
+                print(data)
+                writer.writerow(data)
+
+
 
     #@torch.no_grad()
     def apply(self):
