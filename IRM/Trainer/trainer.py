@@ -1,4 +1,4 @@
-import torch
+import torch,math
 import torch.nn as nn
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -8,7 +8,7 @@ import time
 import os, torchaudio
 import numpy as np
 from Models.models import PreEmphasis
-from Models.TDNN import Speaker_TDNN, Speaker_resnet, ArcMarginProduct
+from Models.TDNN import Speaker_resnet, ArcMarginProduct
 import tools.utils as utils
 from tools.logger import get_logger
 from torch.utils.tensorboard import SummaryWriter
@@ -86,7 +86,7 @@ class IRMTrainer():
         return reg/max
 
     def _clip_point(self, frame_len):
-        clip_length = 100*self.dur+1
+        clip_length = 100*self.dur
         start_point = 0
         end_point = frame_len
         if frame_len>=clip_length:
@@ -99,7 +99,6 @@ class IRMTrainer():
 
 
     def __train_epoch(self, epoch, weight):
-        start_time = time.time()
         relu = nn.ReLU()
         running_mse, running_cos, running_x3, running_x = 0,0,0,0
         i_batch = 0
@@ -126,26 +125,22 @@ class IRMTrainer():
                 mel_c = (self.Mel_scale(clean.exp())+1e-6).log()
                 feature = mel_c.requires_grad_()
 
-                Xb_input = (Xb-self.mean)/self.std
- 
             score = self.speaker(feature, target_spk.cuda(), 'score')
-            #print(score.shape) #[128]
-            #print(feature.shape) #[128,80,401]
             self.speaker.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            
+            max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+            min = torch.amin(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+            yb = (yb-min)/(max-min)
             self.optimizer.zero_grad()
             
-            cam = self.model(mel_n, Xb_input, target_spk)
-            pred_spec = (cam+1e-8).log()+Xb
-            pred_mel = (self.Mel_scale(pred_spec.exp())+1e-6).log()
-            mse_loss = self.mse(pred_spec, clean)/B
-            disto_loss = self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(pred_mel-mel_c),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(mel_c-pred_mel),2)
-            disto_loss = torch.mean(disto_loss)
-
-            train_loss = mse_loss+disto_loss*weight
+            mask = self.model(mel_c)
+            mse_loss = self.mse(mask,yb)
+            if torch.isnan(mse_loss):
+                print(torch.any(torch.isnan(mel_c)))
+                print(torch.any(torch.isnan(mask)))
+                quit()
+            train_loss = mse_loss
             running_mse += mse_loss.item()
-            running_cos += disto_loss.item()
             
             try:
                 train_loss.backward()
@@ -157,17 +152,13 @@ class IRMTrainer():
             torch.cuda.empty_cache()
             i_batch += 1
             self.logger.info("Loss of minibatch {}-th/{}: {}, lr:{}".format(i_batch, len(self.train_dataloader), train_loss.item(), self.optimizer.param_groups[0]['lr']))
-        if epoch%10 ==0:
-            self.optimizer.param_groups[0]['lr'] = self.optimizer.param_groups[0]['lr']*0.8
+        #if epoch%10 ==0:
+            #self.optimizer.param_groups[0]['lr'] = self.optimizer.param_groups[0]['lr']*0.8
         if epoch%10 ==0:
             torch.save(self.model, f"{self.PROJECT_DIR}/models/model_{epoch}.pt")
         ave_mse_loss = running_mse / i_batch
-        ave_cos_loss = running_cos / i_batch
-        end_time = time.time()
         self.writer.add_scalar('Train/mse', ave_mse_loss, epoch)
-        self.writer.add_scalar('Train/cos', ave_cos_loss, epoch)
-        self.logger.info("Epoch:{}, loss = {}".format(epoch, ave_mse_loss+ave_cos_loss)) 
-        self.logger.info(f"Time used for this epoch training: {end_time - start_time} seconds")
+        self.logger.info("Epoch:{}, loss = {}".format(epoch, ave_mse_loss)) 
         self.logger.info("*" * 50)
     
 
@@ -180,7 +171,7 @@ class IRMTrainer():
         running_mse_loss, running_cos_loss, running_x3_loss, running_x_loss= 0.0, 0.0, 0.0, 0.0
         i_batch = 0
         relu = nn.ReLU()
-
+        
         print("Validating...")
         for sample_batched in tqdm(self.validation_dataloader):
             Xb, target_spk, clean, check= sample_batched
@@ -195,36 +186,36 @@ class IRMTrainer():
                 clean = self.pre(clean)
                 clean = (self.Spec(clean)+1e-8).log()
 
-                frame_len = Xb.shape[-1]
                 mel_n = (self.Mel_scale(Xb.exp())+1e-6).log()
                 mel_c = (self.Mel_scale(clean.exp())+1e-6).log()
+ 
+
                 feature = mel_c.requires_grad_()
-                Xb_input = (Xb-self.mean)/self.std
 
             score = self.speaker(feature, target_spk.cuda(), 'score')
             self.speaker.zero_grad()
 
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            cam = self.model(mel_n, Xb_input, target_spk)
-
-            pred_spec = (cam+1e-8).log()+Xb
-            pred_mel = (self.Mel_scale(pred_spec.exp())+1e-6).log()
- 
-            mse_loss = self.mse(pred_spec, clean)/B
-            disto_loss = self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(pred_mel-mel_c),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(mel_n-pred_mel),2)
-            disto_loss = torch.mean(disto_loss)
+            max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+            min = torch.amin(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+            yb = (yb-min)/(max-min)
+            frame_len = mel_c.shape[-1]
+            if frame_len%8>0:
+                pad_num = math.ceil(frame_len/8)*8-frame_len
+                pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
+                mel_c = pad(mel_c)
+            mask = self.model(mel_c)
+            mask = mask[:,:,:frame_len]
+            mse_loss = self.mse(mask, yb)
             running_mse_loss += mse_loss.item()
-            running_cos_loss += disto_loss.item()
 
             i_batch += 1
             
-        ave_cos_loss = running_cos_loss / i_batch
         ave_mse_loss = running_mse_loss / i_batch
         end_time = time.time()
         self.writer.add_scalar('Validation/mse', ave_mse_loss, epoch)
-        self.writer.add_scalar('Validation/cos', ave_cos_loss, epoch)
         self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
-        self.logger.info("Epoch:{}, average loss = {}".format(epoch, ave_cos_loss+ave_mse_loss))
+        self.logger.info("Epoch:{}, average loss = {}".format(epoch, ave_mse_loss))
 
     def _get_global_mean_variance(self):
         mean = 0.0

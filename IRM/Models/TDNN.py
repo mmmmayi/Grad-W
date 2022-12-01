@@ -12,159 +12,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from Models.models import BLSTM
 
-class SEModule(nn.Module):
-    def __init__(self, channels, bottleneck=128):
-        super(SEModule, self).__init__()
-        self.se = nn.Sequential(
-            nn.AdaptiveAvgPool1d(1),
-            nn.Conv1d(channels, bottleneck, kernel_size=1, padding=0),
-            nn.ReLU(),
-            # nn.BatchNorm1d(bottleneck), # I remove this layer
-            nn.Conv1d(bottleneck, channels, kernel_size=1, padding=0),
-            nn.Sigmoid(),
-            )
-
-    def forward(self, input):
-        x = self.se(input)
-        return input * x
-
-class Bottle2neck(nn.Module):
-
-    def __init__(self, inplanes, planes, kernel_size=None, dilation=None, scale = 8):
-        super(Bottle2neck, self).__init__()
-        width       = int(math.floor(planes / scale))
-        self.conv1  = nn.Conv1d(inplanes, width*scale, kernel_size=1)
-        self.bn1    = nn.BatchNorm1d(width*scale)
-        self.nums   = scale -1
-        convs       = []
-        bns         = []
-        num_pad = math.floor(kernel_size/2)*dilation
-        for i in range(self.nums):
-            convs.append(nn.Conv1d(width, width, kernel_size=kernel_size, dilation=dilation, padding=num_pad))
-            bns.append(nn.BatchNorm1d(width))
-        self.convs  = nn.ModuleList(convs)
-        self.bns    = nn.ModuleList(bns)
-        self.conv3  = nn.Conv1d(width*scale, planes, kernel_size=1)
-        self.bn3    = nn.BatchNorm1d(planes)
-        self.relu   = nn.ReLU()
-        self.width  = width
-        self.se     = SEModule(planes)
-
-    def forward(self, x):
-        residual = x
-        out = self.conv1(x)
-        out = self.relu(out)
-        out = self.bn1(out)
-
-        spx = torch.split(out, self.width, 1)
-        for i in range(self.nums):
-          if i==0:
-            sp = spx[i]
-          else:
-            sp = sp + spx[i]
-          sp = self.convs[i](sp)
-          sp = self.relu(sp)
-          sp = self.bns[i](sp)
-          if i==0:
-            out = sp
-          else:
-            out = torch.cat((out, sp), 1)
-        out = torch.cat((out, spx[self.nums]),1)
-
-        out = self.conv3(out)
-        out = self.relu(out)
-        out = self.bn3(out)
-        
-        out = self.se(out)
-        out += residual
-        return out 
-
-class AAMsoftmax(nn.Module):
-    def __init__(self, m, s):
-        
-        super(AAMsoftmax, self).__init__()
-        self.m = m
-        self.s = s
-        self.weight = torch.load('../lst/loss')
-        self.weight.requires_grad = False
-        self.ce = nn.CrossEntropyLoss()
-        self.cos_m = math.cos(self.m)
-        self.sin_m = math.sin(self.m)
-        self.th = math.cos(math.pi - self.m)
-        self.mm = math.sin(math.pi - self.m) * self.m
-
-    def forward(self, x, label=None):
-        cosine = F.linear(F.normalize(x), F.normalize(self.weight))
-        sine = torch.sqrt((1.0 - torch.mul(cosine, cosine)).clamp(0, 1))
-        phi = cosine * self.cos_m - sine * self.sin_m
-        phi = torch.where((cosine - self.th) > 0, phi, cosine - self.mm)
-        one_hot = torch.zeros_like(cosine)
-        one_hot.scatter_(1, label.view(-1, 1), 1)
-        output = (one_hot * phi) + ((1.0 - one_hot) * cosine)
-        output = output * self.s
-        return output
-    
-
-
-class Speaker_TDNN(nn.Module):
-
-    def __init__(self, C=1024):
-
-        super(Speaker_TDNN, self).__init__()
-
-        self.conv1  = nn.Conv1d(80, C, kernel_size=5, stride=1, padding=2)
-        self.relu   = nn.ReLU()
-        self.bn1    = nn.BatchNorm1d(C)
-        self.layer1 = Bottle2neck(C, C, kernel_size=3, dilation=2, scale=8)
-        self.layer2 = Bottle2neck(C, C, kernel_size=3, dilation=3, scale=8)
-        self.layer3 = Bottle2neck(C, C, kernel_size=3, dilation=4, scale=8)
-        self.layer4 = nn.Conv1d(3*C, 1536, kernel_size=1)
-        self.attention = nn.Sequential(
-                nn.Conv1d(4608, 256, kernel_size=1),
-                nn.ReLU(),
-                nn.BatchNorm1d(256),
-                nn.Tanh(), # I add this layer
-                nn.Conv1d(256, 1536, kernel_size=1),
-                nn.Softmax(dim=2),
-                )
-        self.bn5 = nn.BatchNorm1d(3072)
-        self.fc6 = nn.Linear(3072, 192)
-        self.bn6 = nn.BatchNorm1d(192)
-        self.speaker_loss = AAMsoftmax( m = 0.2, s = 30).cuda()
-        self.Mel_scale = torchaudio.transforms.MelScale(80,16000,20,7600,512//2+1).cuda()
-
-    def forward(self, x, target_spk=None, mode='embedding'):
-        x = x - torch.mean(x, dim=-1, keepdim=True)
-        x = self.conv1(x)
-        x = self.relu(x)
-        x = self.bn1(x)
-        x0 = x
-        x1 = self.layer1(x)
-
-        x2 = self.layer2(x+x1)
-        x3 = self.layer3(x+x1+x2)
-
-        x = self.layer4(torch.cat((x1,x2,x3),dim=1))
-
-        x = self.relu(x)
-        x_frame = x
-        t = x.size()[-1]
-        global_x = torch.cat((x,torch.mean(x,dim=2,keepdim=True).repeat(1,1,t), torch.sqrt(torch.var(x,dim=2,keepdim=True).clamp(min=1e-4)).repeat(1,1,t)), dim=1)
-        w = self.attention(global_x)
-        mu = torch.sum(x * w, dim=2)
-        sg = torch.sqrt( ( torch.sum((x**2) * w, dim=2) - mu**2 ).clamp(min=1e-4) )
-        x = torch.cat((mu,sg),1)
-        x = self.bn5(x)
-        x = self.fc6(x)
-        x = self.bn6(x)
-        if mode=='feature':
-            return x_frame
-        elif mode == 'score':
-            score = self.speaker_loss.forward(x,target_spk)
-            result = torch.gather(score,1,target_spk.unsqueeze(1).long()).squeeze()
- 
-            return result
-        return x
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -353,25 +200,23 @@ class Speaker_resnet(nn.Module):
     def forward(self, x, targets=None, mode='feature'):
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
-            #print(x.shape) #[128,80,1002]
+        #print(x.shape) #[128,80,1002]
         x = x - torch.mean(x, dim=-1, keepdim=True)
         #x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
 
         x = x.unsqueeze_(1)
-        print('x shape:',x.shape)
         out = F.relu(self.bn1(self.conv1(x)))
-        print('out.shape:',out.shape)
-        out = self.layer1(out)
-        print('layer1 shape:',out.shape)
-        out = self.layer2(out)
-        print('layer2 shape:',out.shape)
-        out = self.layer3(out)
-        print('layer3 shape:',out.shape)
-        out = self.layer4(out)
-        print('layer4 shape:',out.shape)
-        quit()
+        #print('out.shape:',out.shape) #[B,32,80,T]
+        out1 = self.layer1(out)
+        #print('layer1 shape:',out.shape) #[B,32,80,T]
+        out2 = self.layer2(out1)
+        #print('layer2 shape:',out.shape) #[B,64,40,T/2]
+        out3 = self.layer3(out2)
+        #print('layer3 shape:',out.shape)#[B,128,20,T/4]
+        out4 = self.layer4(out3)
+        #print('layer4 shape:',out.shape)#[B,256,10,T/8]
+        
         frame = out
-        #print(frame.shape)#[B,256,10,51]
         stats = self.pool(out)
 
         embed_a = self.seg_1(stats)
@@ -386,50 +231,114 @@ class Speaker_resnet(nn.Module):
         '''
         if mode=='feature':
             return frame
+        if mode == 'encoder':
+            return [out1,out2,out3,out4]
         elif mode == 'score':
             score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
             return result
 
+class PixelShuffleBlock(nn.Module):
+    def forward(self, x):
+        return F.pixel_shuffle(x, 2)
 
 
+def CNNBlock(in_channels, out_channels,
+                 kernel_size=3, layers=1, stride=1,
+                 follow_with_bn=True, activation_fn=lambda: nn.ReLU(True), affine=True):
+
+        assert layers > 0 and kernel_size%2 and stride>0
+        current_channels = in_channels
+        _modules = []
+        for layer in range(layers):
+            _modules.append(nn.Conv2d(current_channels, out_channels, kernel_size, stride=stride if layer==0 else 1, padding=int(kernel_size/2), bias=not follow_with_bn))
+            current_channels = out_channels
+            if follow_with_bn:
+                _modules.append(nn.BatchNorm2d(current_channels, affine=affine))
+            if activation_fn is not None:
+                _modules.append(activation_fn())
+        return nn.Sequential(*_modules)
+
+def SubpixelUpsampler(in_channels, out_channels, kernel_size=3, activation_fn=lambda: torch.nn.ReLU(inplace=False), follow_with_bn=True):
+    _modules = [
+        CNNBlock(in_channels, out_channels * 4, kernel_size=kernel_size, follow_with_bn=follow_with_bn),#[B,1024,4,4]
+        PixelShuffleBlock(),
+        activation_fn(),
+    ]
+    return nn.Sequential(*_modules)
+
+class UpSampleBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_channels, out_channels,passthrough_channels, stride=1):
+        super(UpSampleBlock, self).__init__()
+        self.upsampler = SubpixelUpsampler(in_channels=in_channels,out_channels=out_channels)
+        self.follow_up = Block(out_channels+passthrough_channels,out_channels)
+
+    def forward(self, x, passthrough):
+        out = self.upsampler(x)
+        out = torch.cat((out,passthrough), 1)
+        return self.follow_up(out)
+
+class Block(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_planes, planes, stride=1):
+        super(Block, self).__init__()
+        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_planes != self.expansion*planes:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(self.expansion*planes)
+            )
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += self.shortcut(x)
+        out = F.relu(out)
+        return out
 
 
-
+class decoder(nn.Module):
+    def __init__(self):
+        super(decoder, self).__init__()
+        self.uplayer4 = UpSampleBlock(in_channels=256,out_channels=128,passthrough_channels=128)
+        self.uplayer3 = UpSampleBlock(in_channels=128,out_channels=64,passthrough_channels=64)
+        self.uplayer2 = UpSampleBlock(in_channels=64,out_channels=32,passthrough_channels=32)
+        self.saliency_chans = nn.Conv2d(32,2,kernel_size=1,bias=False)
+    def forward(self,encoder_out):
+        upsample3 = self.uplayer4(encoder_out[-1], encoder_out[-2])
+        upsample2 = self.uplayer3(encoder_out[-2], encoder_out[-3])
+        upsample1 = self.uplayer2(encoder_out[-3], encoder_out[-4])
+        saliency_chans = self.saliency_chans(upsample1)
+        a = torch.abs(saliency_chans[:,0,:,:])
+        b = torch.abs(saliency_chans[:,1,:,:])
+        return a/(a+b+1e-6)
 
 class multi_TDNN(nn.Module):
     
-    def __init__(self, configs, encoder='ECAPA'):
+    def __init__(self):
         super(multi_TDNN, self).__init__()
         
-        self.module = BLSTM(configs)
-        if encoder == 'ECAPA':
-            path = '../exp/pretrain.model'
-            loaded_state = torch.load(path)
-            self.speaker = Speaker_TDNN()
-            self_state = self.speaker.state_dict()
-            for name, param in loaded_state.items():
-                if name not in self_state:
-                    name = name.replace("speaker_encoder.","")
-                    if name not in self_state:
-                        continue
-                self_state[name].copy_(param)
+        self.decoder = decoder()
 
-        elif encoder == 'resnet':
-            self.speaker = Speaker_resnet()
-            path = "exp/resnet.pt"
-            checkpoint = torch.load(path)
-            self.speaker.load_state_dict(checkpoint, strict=False)
+        self.speaker = Speaker_resnet()
+        path = "exp/resnet.pt"
+        checkpoint = torch.load(path)
+        self.speaker.load_state_dict(checkpoint, strict=False)
 
-        for p in self.speaker.parameters():
-            p.requires_grad = False
+        #for p in self.speaker.parameters():
+            #p.requires_grad = False
         self.speaker.eval()
-    def forward(self,input_spk, input, target_spk=None):
+    def forward(self,input):
         self.speaker.eval()
        
-        self.mask = []
-        with torch.no_grad():
-            x_frame = self.speaker(input_spk, target_spk, mode='feature')
-        mask = self.module(input, x_frame) #range of mask is [0,1]
-
+        encoder_out = self.speaker(input,mode='encoder')
+        mask = self.decoder(encoder_out)
         return mask

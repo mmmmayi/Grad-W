@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 
 ## Set up project dir
-PROJECT_DIR = "exp/resnet"
+PROJECT_DIR = "exp/saliencyMask"
 
 ## Config
 configs = {
@@ -26,7 +26,7 @@ configs = {
     "batchsize": 64,
     "data": 'noisy',
     "dur": 4,
-    "weight": 100000000,
+    "weight": 0,
     "resume_epoch":None,
     "ratio":0.1,
     "optimizer": {
@@ -48,7 +48,7 @@ if __name__ == "__main__":
         dataset=train_irm_dataset,
         batch_size=1,
         shuffle=None,
-        num_workers=8)
+        num_workers=16)
        
     #print('check dataset length:',len(train_irm_dataset))    
     # valid
@@ -68,21 +68,22 @@ if __name__ == "__main__":
     if configs['resume_epoch'] is not None:
         nnet = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
     else:
-        nnet = multi_TDNN(configs, 'ECAPA')
+        nnet = multi_TDNN()
     #print('Learnable parameters of the model:')
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
             #print(name, param.numel())
     total_params = sum(p.numel() for p in nnet.parameters() if p.requires_grad)
     print('Number of trainable parameters: {}'.format(total_params))
-    optimizer = torch.optim.Adadelta(nnet.parameters(), lr=configs["optimizer"]["lr"])
+    #optimizer = torch.optim.Adadelta(nnet.parameters(), lr=configs["optimizer"]["lr"])
+    optimizer = torch.optim.Adam(nnet.decoder.parameters())
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
             #print(name, param.numel())
     
     #optimizer = torch.optim.Adadelta(nnet.parameters(), lr=configs["optimizer"]["lr"])
     BCE_loss = nn.BCELoss()
-    MSE_loss = nn.MSELoss(reduction='sum')
+    MSE_loss = nn.MSELoss()
     COS_loss = nn.CosineEmbeddingLoss()
     CE_loss = nn.CrossEntropyLoss()
     #loss_fn = nn.L1Loss(reduction='sum')
@@ -94,5 +95,5 @@ if __name__ == "__main__":
         project_dir=PROJECT_DIR,
         model=nnet, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,BCE_loss], dur = configs["dur"],
         train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"])
-    irm_trainer._get_global_mean_variance()
-    #irm_trainer.train(configs["weight"], configs["resume_epoch"])
+    #irm_trainer._get_global_mean_variance()
+    irm_trainer.train(configs["weight"], configs["resume_epoch"])

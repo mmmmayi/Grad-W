@@ -417,23 +417,26 @@ class IRMApplier():
             mel_n = (self.Mel_scale(Xb.exp())+1e-6).log()
 
             mel_c = (self.Mel_scale(clean.exp())+1e-6).log()
-            target_spk = torch.stack([torch.tensor(int(self.labels[file.split('/')[-3]]))])
-
-            cam = self.model(mel_n, Xb_input, target_spk)
-            pred_spec = (cam+1e-8).log()+Xb
-            pred_mel = (self.Mel_scale(pred_spec.exp())+1e-6).log()
+            frame_len = mel_c.shape[-1]
+            if frame_len%8>0:
+                pad_num = math.ceil(frame_len/8)*8-frame_len
+                pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
+                mel_c = pad(mel_c)
+            mask = self.model(mel_c)
+            mask = mask[:,:,:frame_len]
 
             if not os.path.exists(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2])):
                 os.makedirs(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2]))
-            fig, ax = plt.subplots(nrows=2, ncols=2, sharex=True)
+            fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
             min = torch.min(mel_c)
             max = torch.max(mel_c)
-            librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
+            #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
 
-            librosa.display.specshow(mel_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,1])
+            librosa.display.specshow(mel_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
-            librosa.display.specshow(pred_spec.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,0], vmin=min,vmax=max)
-            librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
+            img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+            fig.colorbar(img, ax=ax)
+            #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
 
             plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','.png')))
             plt.close()
