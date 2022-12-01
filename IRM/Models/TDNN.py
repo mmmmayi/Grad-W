@@ -358,11 +358,18 @@ class Speaker_resnet(nn.Module):
         #x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
 
         x = x.unsqueeze_(1)
+        print('x shape:',x.shape)
         out = F.relu(self.bn1(self.conv1(x)))
+        print('out.shape:',out.shape)
         out = self.layer1(out)
+        print('layer1 shape:',out.shape)
         out = self.layer2(out)
+        print('layer2 shape:',out.shape)
         out = self.layer3(out)
+        print('layer3 shape:',out.shape)
         out = self.layer4(out)
+        print('layer4 shape:',out.shape)
+        quit()
         frame = out
         #print(frame.shape)#[B,256,10,51]
         stats = self.pool(out)
