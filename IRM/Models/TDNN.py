@@ -62,7 +62,7 @@ class ArcMarginProduct(nn.Module):
                  in_features=256,
                  out_features=17982,
                  scale=32.0,
-                 margin=0.2,
+                 margin=0,
                  easy_margin=False):
         super(ArcMarginProduct, self).__init__()
         self.in_features = in_features
@@ -93,7 +93,7 @@ class ArcMarginProduct(nn.Module):
         self.mmm = 1.0 + math.cos(math.pi - margin)
     def forward(self, input, label):
         cosine = F.linear(F.normalize(input), F.normalize(self.weight))
-        return cosine
+        #return cosine
         sine = torch.sqrt(1.0 - torch.pow(cosine, 2))
         phi = cosine * self.cos_m - sine * self.sin_m
         if self.easy_margin:
@@ -203,7 +203,6 @@ class Speaker_resnet(nn.Module):
         #print(x.shape) #[128,80,1002]
         x = x - torch.mean(x, dim=-1, keepdim=True)
         #x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
-
         x = x.unsqueeze_(1)
         out = F.relu(self.bn1(self.conv1(x)))
         #print('out.shape:',out.shape) #[B,32,80,T]
@@ -215,10 +214,8 @@ class Speaker_resnet(nn.Module):
         #print('layer3 shape:',out.shape)#[B,128,20,T/4]
         out4 = self.layer4(out3)
         #print('layer4 shape:',out.shape)#[B,256,10,T/8]
-        
-        frame = out
-        stats = self.pool(out)
-
+        frame = out4
+        stats = self.pool(out4)
         embed_a = self.seg_1(stats)
         '''
         if self.two_emb_layer:

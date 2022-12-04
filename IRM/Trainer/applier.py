@@ -1,4 +1,4 @@
-import os, torchaudio, soundfile,csv
+import os, torchaudio, soundfile,csv,math
 from pystoi import stoi
 from pypesq import pesq 
 import tqdm
@@ -13,7 +13,7 @@ from mir_eval.separation import bss_eval_sources
 from Models.models import PreEmphasis
 from tools.metrics import compute_PESQ, compute_segsnr
 import torch.nn as nn
-from Models.TDNN import Speaker_TDNN
+from Models.TDNN import Speaker_resnet, ArcMarginProduct
 class IRMApplier():
     def __init__(self,
             project_dir, test_set_name, sampling_rate,
@@ -42,16 +42,14 @@ class IRMApplier():
         self.model = torch.load(model_path)
         self.loss = nn.MSELoss()
         self.model.eval()
-        self.speaker = Speaker_TDNN().cuda()
-        self_state = self.speaker.state_dict()
-        path = '../exp/pretrain.model'
-        loaded_state = torch.load(path)
-        for name, param in loaded_state.items():
-            if name not in self_state:
-                name = name.replace("speaker_encoder.","")
-                if name not in self_state:
-                    continue
-            self_state[name].copy_(param)
+        self.speaker = Speaker_resnet().cuda()
+        projection = ArcMarginProduct().cuda()
+        self.speaker.add_module("projection", projection)
+        path = 'exp/resnet.pt'
+        checkpoint = torch.load(path)
+        self.speaker.load_state_dict(checkpoint, strict=False)
+        self.labels = torch.load('../lst/resnet_speaker.pt')
+
         for p in self.speaker.parameters():
             p.requires_grad = False
         self.speaker.eval()
@@ -382,7 +380,17 @@ class IRMApplier():
                 print(data)
                 writer.writerow(data)
 
-
+    def _clip_point(self, frame_len):
+        clip_length = 100*4
+        start_point = 0
+        end_point = frame_len
+        if frame_len>=clip_length:
+            start_point = np.random.randint(0, frame_len - clip_length + 1)
+            end_point = start_point + clip_length
+        else:
+            print('bug exists in clip point')
+            quit()
+        return start_point, end_point
 
     #@torch.no_grad()
     def apply(self):
@@ -397,37 +405,52 @@ class IRMApplier():
             files.append(line.split()[2])
         setfiles = list(set(files))
         setfiles.sort()
-        for i, file in tqdm(enumerate(setfiles), total = len(setfiles)):
+        for i, file in tqdm.tqdm(enumerate(setfiles), total = len(setfiles)):
 
             # Load data from validation_dataloader
             spk = file.split('/')[0]
             idx = int(spk[2:])
             num = str(idx//200)
-
+            target_spk = torch.stack([torch.tensor(int(self.labels[spk]))])
             audio, _  = soundfile.read(os.path.join(eval_path, num,file))
             Xb = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             audio, _  = soundfile.read(os.path.join(clean_path, num,file))
             clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
-            Xb = self.pre(Xb)
-            clean = self.pre(clean)
+            #Xb = self.pre(Xb)
+            #clean = self.pre(clean)
             #Xb = (self.MelSpec(Xb)+1e-6)
             Xb = (self.Spec(Xb)+1e-8).log()
-            Xb_input = (Xb-self.mean)/self.std
+           
             clean = (self.Spec(clean)+1e-8).log()
+            frame_len = Xb.shape[-1]
+            start, end = self._clip_point(frame_len)
+            Xb = Xb[:,:,start:end]
+            clean = clean[:,:,start:end]
+
             mel_n = (self.Mel_scale(Xb.exp())+1e-6).log()
 
             mel_c = (self.Mel_scale(clean.exp())+1e-6).log()
+            feature = mel_c.requires_grad_()
+            score = self.speaker(feature, target_spk.cuda(), 'score')
+            yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
+            max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+            min = torch.amin(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+            yb = (yb-min)/(max-min)
+
             frame_len = mel_c.shape[-1]
+            '''
             if frame_len%8>0:
                 pad_num = math.ceil(frame_len/8)*8-frame_len
                 pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
                 mel_c = pad(mel_c)
+            '''
             mask = self.model(mel_c)
-            mask = mask[:,:,:frame_len]
+            
+            #mask = mask[:,:,:frame_len]
 
             if not os.path.exists(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2])):
                 os.makedirs(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2]))
-            fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
+            fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
             min = torch.min(mel_c)
             max = torch.max(mel_c)
             #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
@@ -435,6 +458,7 @@ class IRMApplier():
             librosa.display.specshow(mel_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
             img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+            librosa.display.specshow(yb.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
             fig.colorbar(img, ax=ax)
             #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
 
