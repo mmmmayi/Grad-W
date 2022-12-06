@@ -229,7 +229,7 @@ class Speaker_resnet(nn.Module):
         if mode=='feature':
             return frame
         if mode == 'encoder':
-            return [out1,out2,out3,out4]
+            return [out1,out2,out3,out4,embed_a]
         elif mode == 'score':
             score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
@@ -310,9 +310,15 @@ class decoder(nn.Module):
         self.uplayer2 = UpSampleBlock(in_channels=64,out_channels=32,passthrough_channels=32)
         self.saliency_chans = nn.Conv2d(32,2,kernel_size=1,bias=False)
     def forward(self,encoder_out):
-        upsample3 = self.uplayer4(encoder_out[-1], encoder_out[-2])
-        upsample2 = self.uplayer3(encoder_out[-2], encoder_out[-3])
-        upsample1 = self.uplayer2(encoder_out[-3], encoder_out[-4])
+        em = encoder_out[-1]
+        scale4 = encoder_out[-2]
+        act = torch.sum(scale4*em.view(-1, 256, 1, 1), 1, keepdim=True)
+        th = torch.sigmoid(act)
+        scale4 = scale4*th
+
+        upsample3 = self.uplayer4(scale4, encoder_out[-3])
+        upsample2 = self.uplayer3(encoder_out[-3], encoder_out[-4])
+        upsample1 = self.uplayer2(encoder_out[-4], encoder_out[-5])
         saliency_chans = self.saliency_chans(upsample1)
         a = torch.abs(saliency_chans[:,0,:,:])
         b = torch.abs(saliency_chans[:,1,:,:])

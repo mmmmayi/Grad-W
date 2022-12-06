@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 
 ## Set up project dir
-PROJECT_DIR = "exp/saliencyMask_preserve0.01_remove"
+PROJECT_DIR = "exp/saliencyMask_selector_preserve0.001"
 
 ## Config
 configs = {
@@ -23,10 +23,10 @@ configs = {
     "output_dim": 257,
     "num_layers": 3,        
     "num_epochs": 100,
-    "batchsize": 16,
+    "batchsize": 32,
     "data": 'noisy',
     "dur": 4,
-    "weight": 0.01,
+    "weight": 0.001,
     "resume_epoch":None,
     "ratio":0.1,
     "optimizer": {

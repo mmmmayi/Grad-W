@@ -3,8 +3,8 @@ from Models.dataset import IRMDataset
 from Trainer.applier import IRMApplier
 
 
-PROJECT_DIR = "exp/saliencyMask_preserve0.01_remove/wav_20"
-MODEL_PATH = "exp/saliencyMask_preserve0.01_remove/models/model_20.pt"
+PROJECT_DIR = "exp/saliencyMask_preserve0.01/wav_30"
+MODEL_PATH = "exp/saliencyMask_preserve0.01/models/model_30.pt"
 mode = 'quality'
 
 if __name__ == "__main__":
@@ -28,6 +28,6 @@ if __name__ == "__main__":
         model_path=MODEL_PATH,
         applier_dl=applier_loader,
         mode = mode)
-#    irm_applier.restore()
+    irm_applier.restore()
 #    irm_applier.quality_vox1()
     irm_applier.apply()
