@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 
 ## Set up project dir
-PROJECT_DIR = "exp/saliencyMask_selector_preserve0.001"
+PROJECT_DIR = "exp/saliencyMask_selector_preserve0.1_remove0.01_enh"
 
 ## Config
 configs = {
@@ -26,7 +26,7 @@ configs = {
     "batchsize": 32,
     "data": 'noisy',
     "dur": 4,
-    "weight": 0.001,
+    "weight": 0.1,
     "resume_epoch":None,
     "ratio":0.1,
     "optimizer": {
@@ -48,7 +48,7 @@ if __name__ == "__main__":
         dataset=train_irm_dataset,
         batch_size=1,
         shuffle=None,
-        num_workers=8)
+        num_workers=16)
        
     #print('check dataset length:',len(train_irm_dataset))    
     # valid
