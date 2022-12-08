@@ -162,7 +162,7 @@ class IRMTrainer():
             running_mse += mse_loss.item()
             running_preserve += 0-preserve_score.item()
             running_remove += remove_score.item()
-            runnning_enh += enh_loss.item()
+            running_enh += enh_loss.item()
             try:
                 train_loss.backward()
             except RuntimeError as e:
