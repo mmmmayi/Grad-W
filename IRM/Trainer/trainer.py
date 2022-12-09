@@ -312,7 +312,7 @@ class IRMTrainer():
         ## Train and validate
         for epoch in range(start_epoch+1, self.config["num_epochs"]+1):
 
-            #self.__set_models_to_train_mode()
-            #self.__train_epoch(epoch, weight)
+            self.__set_models_to_train_mode()
+            self.__train_epoch(epoch, weight)
             self.__set_models_to_eval_mode()
             self.__validation_epoch(epoch, weight)
