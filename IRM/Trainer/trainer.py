@@ -104,12 +104,12 @@ class IRMTrainer():
 
     def __train_epoch(self, epoch, weight):
         relu = nn.ReLU()
-        running_mse, running_preserve, running_remove, running_enh = 0,0,0,0
-        i_batch = 0
+        running_mse, running_preserve, running_remove, running_enh, running_diff = 0,0,0,0,0
+        i_batch,diff_batch = 0,0
         self.train_dataloader.dataset.shuffle(epoch)
         for sample_batched in self.train_dataloader:
             # Load data from trainloader
-            Xb, target_spk, clean, check  = sample_batched
+            Xb, target_spk, clean, correct_spk  = sample_batched
             
             _, B, _, W = Xb.shape
             Xb = Xb.reshape(B,W).cuda()
@@ -127,42 +127,41 @@ class IRMTrainer():
                 clean = clean[:,:,start:end] 
                 mel_n = (self.Mel_scale(Xb.exp())+1e-6).log()
                 mel_c = (self.Mel_scale(clean.exp())+1e-6).log()
-                feature = mel_c.requires_grad_()
+                feature = mel_n.requires_grad_()
+            mask = self.model(mel_n,mel_c)
+            if correct_spk.item() is False:
+                train_loss = torch.mean(torch.pow(mask-0.5,2))
+                running_diff += train_loss.item()
+                diff_batch += 1
+            else:
+                score = self.speaker(feature, target_spk.cuda(), 'score')
+                self.speaker.zero_grad()
+                yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
+                SaM = self.vari_sigmoid(yb,50)
+                '''
+                for i in range(16):
+                    fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
+                    librosa.display.specshow(mel_c[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+                    img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'.png')
+                    plt.close()
+                quit()
+                '''
 
-            score = self.speaker(feature, target_spk.cuda(), 'score')
-            self.speaker.zero_grad()
-            yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            #max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            #min = torch.amin(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            #yb = (yb-min)/(max-min)
-            SaM = self.vari_sigmoid(yb,50)
-            '''
-            for i in range(16):
-                fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
-
-                librosa.display.specshow(mel_c[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
-
-                img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'.png')
-
-                plt.close()
-            quit()
-            '''
+                inverse_mask = 1-mask
+                mse_loss = self.mse(mask,SaM)
+                enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
+                preserve_score = torch.mean(self.speaker(mel_c+(mask+0.5).log(), target_spk.cuda(), 'score'))
+                remove_score = torch.mean(self.speaker(mel_c+(inverse_mask+0.5).log(), target_spk.cuda(), 'score'))
+                train_loss = mse_loss-preserve_score+weight*enh_loss+0.01*remove_score
+                running_mse += mse_loss.item()
+                running_preserve += 0-preserve_score.item()
+                running_remove += remove_score.item()
+                running_enh += enh_loss.item()
+                i_batch += 1
 
             self.optimizer.zero_grad()
-            
-            mask = self.model(mel_c)
-            #mean = torch.mean(mask,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            inverse_mask = 1-mask
-            mse_loss = self.mse(mask,SaM)
-            enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
-            preserve_score = torch.mean(self.speaker(mel_c+(mask+0.5).log(), target_spk.cuda(), 'score'))
-            remove_score = torch.mean(self.speaker(mel_c+(inverse_mask+0.5).log(), target_spk.cuda(), 'score'))
-            train_loss = mse_loss-preserve_score+weight*enh_loss+0.01*remove_score
-            running_mse += mse_loss.item()
-            running_preserve += 0-preserve_score.item()
-            running_remove += remove_score.item()
-            running_enh += enh_loss.item()
+
             try:
                 train_loss.backward()
             except RuntimeError as e:
@@ -171,8 +170,7 @@ class IRMTrainer():
             
             self.optimizer.step()
             torch.cuda.empty_cache()
-            i_batch += 1
-            self.logger.info("Loss of minibatch {}-th/{}: {}, lr:{}".format(i_batch, len(self.train_dataloader), train_loss.item(), self.optimizer.param_groups[0]['lr']))
+            self.logger.info("Loss of minibatch {}-th/{}: {}, lr:{}".format(i_batch+diff_batch, len(self.train_dataloader), train_loss.item(), self.optimizer.param_groups[0]['lr']))
         #if epoch%10 ==0:
             #self.optimizer.param_groups[0]['lr'] = self.optimizer.param_groups[0]['lr']*0.8
         if epoch%10 ==0:
@@ -181,10 +179,12 @@ class IRMTrainer():
         ave_preserve_loss = running_preserve / i_batch
         ave_remove_loss = running_remove / i_batch
         ave_enh_loss = running_enh / i_batch
+        ave_diff_loss = running_diff / diff_batch
         self.writer.add_scalar('Train/mse', ave_mse_loss, epoch)
         self.writer.add_scalar('Train/preserve', ave_preserve_loss, epoch)
         self.writer.add_scalar('Train/remove', ave_remove_loss, epoch)
         self.writer.add_scalar('Train/enh', ave_enh_loss, epoch)
+        self.writer.add_scalar('Train/diff', ave_diff_loss, epoch)
         self.logger.info("Epoch:{}, loss = {}".format(epoch, ave_mse_loss+ave_preserve_loss+ave_enh_loss+ave_remove_loss)) 
         self.logger.info("*" * 50)
     
@@ -195,13 +195,13 @@ class IRMTrainer():
 
     def __validation_epoch(self, epoch, weight):
         start_time = time.time()
-        running_mse_loss, running_preserve_loss, running_remove_loss, running_enh_loss= 0.0, 0.0, 0.0, 0.0
-        i_batch = 0
+        running_mse_loss, running_preserve_loss, running_remove_loss, running_enh_loss, running_diff_loss  = 0.0, 0.0, 0.0, 0.0, 0.0
+        i_batch,diff_batch = 0,0
         relu = nn.ReLU()
         
         print("Validating...")
         for sample_batched in tqdm(self.validation_dataloader):
-            Xb, target_spk, clean, check= sample_batched
+            Xb, target_spk, clean, correct_spk = sample_batched
             _, B, _, W = Xb.shape
             Xb = Xb.reshape(B,W).cuda()
             clean = clean.reshape(B,W).cuda()
@@ -221,41 +221,48 @@ class IRMTrainer():
                 mel_c = (self.Mel_scale(clean.exp())+1e-6).log()
  
 
-                feature = mel_c.requires_grad_()
+                feature = mel_n.requires_grad_()
+            mask = self.model(mel_n, mel_c)
+            if correct_spk.item() is False:
+                val_loss = torch.mean(torch.pow(mask-0.5,2))
+                running_diff_loss += val_loss.item()
+                diff_batch += 1
+            else:
+                score = self.speaker(feature, target_spk.cuda(), 'score')
+                self.speaker.zero_grad()
 
-            score = self.speaker(feature, target_spk.cuda(), 'score')
-            self.speaker.zero_grad()
-
-            yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            SaM = self.vari_sigmoid(yb,50)
+                yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
+                SaM = self.vari_sigmoid(yb,50)
             #frame_len = mel_c.shape[-1]
             #if frame_len%8>0:
                 #pad_num = math.ceil(frame_len/8)*8-frame_len
                 #pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
                 #mel_c_ = pad(mel_c)
-            mask = self.model(mel_c)
-            inverse_mask = 1-mask
             
-            mse_loss = self.mse(mask, yb)
-            enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
-            preserve_score = torch.mean(self.speaker(mel_c+(mask+0.5).log(), target_spk.cuda(), 'score'))
-            remove_score = torch.mean(self.speaker(mel_c+(inverse_mask+0.5).log(), target_spk.cuda(), 'score'))
-            running_mse_loss += mse_loss.item()
-            running_preserve_loss += 0-preserve_score.item()
-            running_enh_loss += enh_loss.item()
-            running_remove_loss += remove_score.item()
+                inverse_mask = 1-mask
+            
+                mse_loss = self.mse(mask, yb)
+                enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
+                preserve_score = torch.mean(self.speaker(mel_c+(mask+0.5).log(), target_spk.cuda(), 'score'))
+                remove_score = torch.mean(self.speaker(mel_c+(inverse_mask+0.5).log(), target_spk.cuda(), 'score'))
+                running_mse_loss += mse_loss.item()
+                running_preserve_loss += 0-preserve_score.item()
+                running_enh_loss += enh_loss.item()
+                running_remove_loss += remove_score.item()
             #running_remove_loss += remove_score.item()
-            i_batch += 1
+                i_batch += 1
             
         ave_mse_loss = running_mse_loss / i_batch
         ave_preserve_loss = running_preserve_loss / i_batch
         ave_remove_loss = running_remove_loss / i_batch
         ave_enh_loss = running_enh_loss / i_batch
+        ave_diff_loss = running_diff_loss / diff_batch
         end_time = time.time()
         self.writer.add_scalar('Validation/mse', ave_mse_loss, epoch)
         self.writer.add_scalar('Validation/preserve', ave_preserve_loss, epoch)
         self.writer.add_scalar('Validation/remove', ave_remove_loss, epoch)
         self.writer.add_scalar('Validation/enh', ave_enh_loss, epoch)
+        self.writer.add_scalar('Validation/diff', ave_diff_loss, epoch)
         self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
         self.logger.info("Epoch:{}, average loss = {}".format(epoch, ave_mse_loss+ave_preserve_loss+ave_remove_loss+ave_enh_loss))
 
@@ -305,7 +312,7 @@ class IRMTrainer():
         ## Train and validate
         for epoch in range(start_epoch+1, self.config["num_epochs"]+1):
 
-            self.__set_models_to_train_mode()
-            self.__train_epoch(epoch, weight)
+            #self.__set_models_to_train_mode()
+            #self.__train_epoch(epoch, weight)
             self.__set_models_to_eval_mode()
             self.__validation_epoch(epoch, weight)

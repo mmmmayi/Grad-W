@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 
 ## Set up project dir
-PROJECT_DIR = "exp/saliencyMask_selector_preserve_remove0.01_enh1e3"
+PROJECT_DIR = "exp/saliencyMask_selector_preserve_remove0.01_enh1e3_adv"
 
 ## Config
 configs = {

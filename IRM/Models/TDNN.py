@@ -228,8 +228,10 @@ class Speaker_resnet(nn.Module):
         '''
         if mode=='feature':
             return frame
-        if mode == 'encoder':
-            return [out1,out2,out3,out4,embed_a]
+        elif mode == 'encoder':
+            return [out1,out2,out3,out4]
+        elif mode == 'reference':
+            return embed_a
         elif mode == 'score':
             score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
@@ -339,9 +341,11 @@ class multi_TDNN(nn.Module):
         #for p in self.speaker.parameters():
             #p.requires_grad = False
         self.speaker.eval()
-    def forward(self,input):
+    def forward(self,input,ref):
         self.speaker.eval()
        
         encoder_out = self.speaker(input,mode='encoder')
+        embed = self.speaker(ref,mode='reference')
+        encoder_out.append(embed)
         mask = self.decoder(encoder_out)
         return mask
