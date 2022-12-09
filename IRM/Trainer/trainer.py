@@ -158,7 +158,7 @@ class IRMTrainer():
             enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
             preserve_score = torch.mean(self.speaker(mel_c+(mask+0.5).log(), target_spk.cuda(), 'score'))
             remove_score = torch.mean(self.speaker(mel_c+(inverse_mask+0.5).log(), target_spk.cuda(), 'score'))
-            train_loss = mse_loss-weight*preserve_score+enh_loss+weight*0.01*remove_score
+            train_loss = mse_loss-preserve_score+weight*enh_loss+0.01*remove_score
             running_mse += mse_loss.item()
             running_preserve += 0-preserve_score.item()
             running_remove += remove_score.item()
@@ -242,6 +242,8 @@ class IRMTrainer():
             remove_score = torch.mean(self.speaker(mel_c+(inverse_mask+0.5).log(), target_spk.cuda(), 'score'))
             running_mse_loss += mse_loss.item()
             running_preserve_loss += 0-preserve_score.item()
+            running_enh_loss += enh_loss.item()
+            running_remove_loss += remove_score.item()
             #running_remove_loss += remove_score.item()
             i_batch += 1
             
