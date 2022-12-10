@@ -444,7 +444,7 @@ class IRMApplier():
                 pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
                 mel_c = pad(mel_c)
             '''
-            mask = self.model(mel_c)
+            mask = self.model(mel_c,mel_c)
             
             #mask = mask[:,:,:frame_len]
 
