@@ -130,7 +130,7 @@ class IRMTrainer():
                 feature = mel_n.requires_grad_()
             mask = self.model(mel_n,mel_c)
             if correct_spk.item() is False:
-                train_loss = torch.mean(torch.pow(mask-0.5,2))
+                train_loss = weight*torch.mean(torch.pow(mask-0.5,2))
                 running_diff += train_loss.item()
                 diff_batch += 1
             else:
