@@ -60,7 +60,7 @@ class ArcMarginProduct(nn.Module):
         """
     def __init__(self,
                  in_features=256,
-                 out_features=17982,
+                 out_features=5994,
                  scale=32.0,
                  margin=0,
                  easy_margin=False):
@@ -214,7 +214,7 @@ class Speaker_resnet(nn.Module):
         #print('layer3 shape:',out.shape)#[B,128,20,T/4]
         out4 = self.layer4(out3)
         #print('layer4 shape:',out.shape)#[B,256,10,T/8]
-        frame = out4
+        frame = out4.requires_grad_()
         stats = self.pool(out4)
         embed_a = self.seg_1(stats)
         '''
@@ -235,7 +235,7 @@ class Speaker_resnet(nn.Module):
         elif mode == 'score':
             score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
-            return result
+            return result, frame
 
 class PixelShuffleBlock(nn.Module):
     def forward(self, x):
@@ -311,11 +311,14 @@ class decoder(nn.Module):
         self.uplayer3 = UpSampleBlock(in_channels=128,out_channels=64,passthrough_channels=64)
         self.uplayer2 = UpSampleBlock(in_channels=64,out_channels=32,passthrough_channels=32)
         self.saliency_chans = nn.Conv2d(32,2,kernel_size=1,bias=False)
+    def vari_sigmoid(self,x,a):
+        return 1/(1+(-a*x).exp())
+
     def forward(self,encoder_out):
         em = encoder_out[-1]
         scale4 = encoder_out[-2]
         act = torch.sum(scale4*em.view(-1, 256, 1, 1), 1, keepdim=True)
-        th = torch.sigmoid(act)
+        th = self.vari_sigmoid(act,50)
         scale4 = scale4*th
 
         upsample3 = self.uplayer4(scale4, encoder_out[-3])
@@ -324,7 +327,7 @@ class decoder(nn.Module):
         saliency_chans = self.saliency_chans(upsample1)
         a = torch.abs(saliency_chans[:,0,:,:])
         b = torch.abs(saliency_chans[:,1,:,:])
-        return a/(a+b+1e-6)
+        return a/(a+b+1e-6), th
 
 class multi_TDNN(nn.Module):
     
@@ -332,11 +335,13 @@ class multi_TDNN(nn.Module):
         super(multi_TDNN, self).__init__()
         
         self.decoder = decoder()
+        self.embedding = Speaker_resnet() 
 
         self.speaker = Speaker_resnet()
         path = "exp/resnet.pt"
         checkpoint = torch.load(path)
         self.speaker.load_state_dict(checkpoint, strict=False)
+        self.embedding.load_state_dict(checkpoint, strict=False)
 
         #for p in self.speaker.parameters():
             #p.requires_grad = False
@@ -345,7 +350,7 @@ class multi_TDNN(nn.Module):
         self.speaker.eval()
        
         encoder_out = self.speaker(input,mode='encoder')
-        embed = self.speaker(ref,mode='reference')
+        embed = self.embedding(ref,mode='reference')
         encoder_out.append(embed)
-        mask = self.decoder(encoder_out)
-        return mask
+        mask,th = self.decoder(encoder_out)
+        return mask,th

@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 
 ## Set up project dir
-PROJECT_DIR = "exp/saliencyMask_selector_preserve_remove0.01_enh1e3_adv1e3"
+PROJECT_DIR = "exp/frameSelector_preserve_remove0.01_enh1e3_adv1e3_thmse"
 
 ## Config
 configs = {
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     total_params = sum(p.numel() for p in nnet.parameters() if p.requires_grad)
     print('Number of trainable parameters: {}'.format(total_params))
     #optimizer = torch.optim.Adadelta(nnet.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.Adam(nnet.decoder.parameters())
+    optimizer = torch.optim.Adam(list(nnet.decoder.parameters())+list(nnet.decoder.parameters(nnet.embedding.parameters())))
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
             #print(name, param.numel())

@@ -62,7 +62,7 @@ class IRMTrainer():
         self.speaker = Speaker_resnet().cuda()
         projection = ArcMarginProduct().cuda()
         self.speaker.add_module("projection", projection)
-        path = 'exp/resnet.pt'
+        path = 'exp/resnet_5994.pt'
         checkpoint = torch.load(path)
 
         self.speaker.load_state_dict(checkpoint, strict=False)
@@ -104,7 +104,7 @@ class IRMTrainer():
 
     def __train_epoch(self, epoch, weight):
         relu = nn.ReLU()
-        running_mse, running_preserve, running_remove, running_enh, running_diff = 0,0,0,0,0
+        running_mse, running_preserve, running_remove, running_enh, running_diff, running_thf, running_tht = 0,0,0,0,0,0,0
         i_batch,diff_batch = 0,0
         self.train_dataloader.dataset.shuffle(epoch)
         for sample_batched in self.train_dataloader:
@@ -116,9 +116,9 @@ class IRMTrainer():
             clean = clean.reshape(B,W).cuda()
             target_spk = target_spk.reshape(B)
             with torch.no_grad():
-                #Xb = self.pre(Xb)
+                Xb = self.pre(Xb)
                 Xb = (self.Spec(Xb)+1e-8).log()           
-                #clean = self.pre(clean)
+                clean = self.pre(clean)
                 clean = (self.Spec(clean)+1e-8).log()     
  
                 frame_len = Xb.shape[-1]
@@ -128,21 +128,30 @@ class IRMTrainer():
                 mel_n = (self.Mel_scale(Xb.exp())+1e-6).log()
                 mel_c = (self.Mel_scale(clean.exp())+1e-6).log()
                 feature = mel_n.requires_grad_()
-            mask = self.model(mel_n,mel_c)
+            mask,th = self.model(mel_n,mel_c)
             if correct_spk.item() is False:
-                train_loss = weight*torch.mean(torch.pow(mask-0.5,2))
-                running_diff += train_loss.item()
+                diff_loss = weight*torch.mean(torch.pow(mask-0.5,2))
+                thf_loss = torch.mean(torch.pow(th-0.5,2))
+                train_loss = thf_loss+diff_loss
+                running_diff += diff_loss.item()
+                running_thf += thf_loss.item()
                 diff_batch += 1
             else:
-                score = self.speaker(feature, target_spk.cuda(), 'score')
+                score, frame = self.speaker(feature, target_spk.cuda(), 'score')
                 self.speaker.zero_grad()
+                yb_frame = torch.autograd.grad(score, frame, grad_outputs=torch.ones_like(score), retain_graph=True)[0]
                 yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
                 SaM = self.vari_sigmoid(yb,50)
+                SaM_frame = self.vari_sigmoid(yb_frame, 50)
                 '''
-                for i in range(16):
-                    fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
-                    librosa.display.specshow(mel_c[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
-                    img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+                for i in range(10):
+                    temp = yb_frame[0,i,:,:]
+
+                    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
+                    img = librosa.display.specshow(temp.detach().cpu().squeeze().numpy(),x_axis=None)
+                    fig.colorbar(img, ax=ax)
+
+                    #img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
                     plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'.png')
                     plt.close()
                 quit()
@@ -150,14 +159,18 @@ class IRMTrainer():
 
                 inverse_mask = 1-mask
                 mse_loss = self.mse(mask,SaM)
+                tht_loss = self.mse(th, SaM_frame)
                 enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
-                preserve_score = torch.mean(self.speaker(mel_n+(mask+0.5).log(), target_spk.cuda(), 'score'))
-                remove_score = torch.mean(self.speaker(mel_n+(inverse_mask+0.5).log(), target_spk.cuda(), 'score'))
-                train_loss = mse_loss-preserve_score+weight*enh_loss+0.01*remove_score
+                preserve_score, _ = self.speaker(mel_n+(mask+0.5).log(), target_spk.cuda(), 'score')
+                preserve_score = torch.mean(preserve_score)
+                remove_score, _ = self.speaker(mel_n+(inverse_mask+0.5).log(), target_spk.cuda(), 'score')
+                remove_score = torch.mean(remove_score)
+                train_loss = mse_loss-preserve_score+weight*enh_loss+0.01*remove_score+tht_loss
                 running_mse += mse_loss.item()
                 running_preserve += 0-preserve_score.item()
                 running_remove += remove_score.item()
                 running_enh += enh_loss.item()
+                running_tht += tht_loss.item()
                 i_batch += 1
 
             self.optimizer.zero_grad()
@@ -180,12 +193,16 @@ class IRMTrainer():
         ave_remove_loss = running_remove / i_batch
         ave_enh_loss = running_enh / i_batch
         ave_diff_loss = running_diff / diff_batch
+        ave_thf_loss = running_thf / diff_batch
+        ave_tht_loss = running_tht / i_batch
         self.writer.add_scalar('Train/mse', ave_mse_loss, epoch)
         self.writer.add_scalar('Train/preserve', ave_preserve_loss, epoch)
         self.writer.add_scalar('Train/remove', ave_remove_loss, epoch)
         self.writer.add_scalar('Train/enh', ave_enh_loss, epoch)
         self.writer.add_scalar('Train/diff', ave_diff_loss, epoch)
-        self.logger.info("Epoch:{}, loss = {}".format(epoch, ave_mse_loss+ave_preserve_loss+ave_enh_loss+ave_remove_loss)) 
+        self.writer.add_scalar('Train/thf', ave_thf_loss, epoch)
+        self.writer.add_scalar('Train/tht', ave_tht_loss, epoch)
+        self.logger.info("Epoch:{}".format(epoch)) 
         self.logger.info("*" * 50)
     
 
@@ -195,7 +212,7 @@ class IRMTrainer():
 
     def __validation_epoch(self, epoch, weight):
         start_time = time.time()
-        running_mse_loss, running_preserve_loss, running_remove_loss, running_enh_loss, running_diff_loss  = 0.0, 0.0, 0.0, 0.0, 0.0
+        running_mse_loss, running_preserve_loss, running_remove_loss, running_enh_loss, running_diff_loss, running_tft_loss, running_thf_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         i_batch,diff_batch = 0,0
         relu = nn.ReLU()
         
@@ -222,17 +239,20 @@ class IRMTrainer():
  
 
                 feature = mel_n.requires_grad_()
-            mask = self.model(mel_n, mel_c)
+            mask,th = self.model(mel_n, mel_c)
             if correct_spk.item() is False:
+                thf_loss = torch.mean(torch.pow(th-0.5,2))
                 val_loss = torch.mean(torch.pow(mask-0.5,2))
                 running_diff_loss += val_loss.item()
+                running_thf_loss += thf_loss.item()
                 diff_batch += 1
             else:
-                score = self.speaker(feature, target_spk.cuda(), 'score')
+                score, frame = self.speaker(feature, target_spk.cuda(), 'score')
                 self.speaker.zero_grad()
-
+                yb_frame = torch.autograd.grad(score, frame, grad_outputs=torch.ones_like(score), retain_graph=True)[0]
                 yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
                 SaM = self.vari_sigmoid(yb,50)
+                SaM_frame = self.vari_sigmoid(yb_frame,50)
             #frame_len = mel_c.shape[-1]
             #if frame_len%8>0:
                 #pad_num = math.ceil(frame_len/8)*8-frame_len
@@ -240,14 +260,17 @@ class IRMTrainer():
                 #mel_c_ = pad(mel_c)
             
                 inverse_mask = 1-mask
-            
+                tht_loss = self.mse(th, SaM_frame)
                 mse_loss = self.mse(mask, yb)
                 enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
-                preserve_score = torch.mean(self.speaker(mel_n+(mask+0.5).log(), target_spk.cuda(), 'score'))
-                remove_score = torch.mean(self.speaker(mel_n+(inverse_mask+0.5).log(), target_spk.cuda(), 'score'))
+                preserve_score, _ = self.speaker(mel_n+(mask+0.5).log(), target_spk.cuda(), 'score')
+                preserve_score = torch.mean(preserve_score)
+                remove_score, _ = self.speaker(mel_n+(inverse_mask+0.5).log(), target_spk.cuda(), 'score')
+                remove_score = torch.mean(remove_score)
                 running_mse_loss += mse_loss.item()
                 running_preserve_loss += 0-preserve_score.item()
                 running_enh_loss += enh_loss.item()
+                running_tht_loss += tht_loss.item()
                 running_remove_loss += remove_score.item()
             #running_remove_loss += remove_score.item()
                 i_batch += 1
@@ -257,14 +280,18 @@ class IRMTrainer():
         ave_remove_loss = running_remove_loss / i_batch
         ave_enh_loss = running_enh_loss / i_batch
         ave_diff_loss = running_diff_loss / diff_batch
+        ave_thf_loss = running_thf_loss / diff_batch
+        ave_tht_loss = running_tht_loss / i_batch
         end_time = time.time()
         self.writer.add_scalar('Validation/mse', ave_mse_loss, epoch)
         self.writer.add_scalar('Validation/preserve', ave_preserve_loss, epoch)
         self.writer.add_scalar('Validation/remove', ave_remove_loss, epoch)
         self.writer.add_scalar('Validation/enh', ave_enh_loss, epoch)
         self.writer.add_scalar('Validation/diff', ave_diff_loss, epoch)
+        self.writer.add_scalar('Validation/tht', ave_tht_loss, epoch)
+        self.writer.add_scalar('Validation/thf', ave_thf_loss, epoch)
         self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
-        self.logger.info("Epoch:{}, average loss = {}".format(epoch, ave_mse_loss+ave_preserve_loss+ave_remove_loss+ave_enh_loss))
+        self.logger.info("Epoch:{}".format(epoch))
 
     def _get_global_mean_variance(self):
         mean = 0.0
