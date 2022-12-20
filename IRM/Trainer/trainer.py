@@ -117,16 +117,16 @@ class IRMTrainer():
             target_spk = target_spk.reshape(B)
             with torch.no_grad():
                 Xb = self.pre(Xb)
-                Xb = (self.Spec(Xb)+1e-8).log()           
+                Xb = self.Spec(Xb) 
                 clean = self.pre(clean)
-                clean = (self.Spec(clean)+1e-8).log()     
+                clean = self.Spec(clean)
  
                 frame_len = Xb.shape[-1]
                 start, end = self._clip_point(frame_len) 
                 Xb = Xb[:,:,start:end]
                 clean = clean[:,:,start:end] 
-                mel_n = (self.Mel_scale(Xb.exp())+1e-6).log()
-                mel_c = (self.Mel_scale(clean.exp())+1e-6).log()
+                mel_n = (self.Mel_scale(Xb)+1e-6).log()
+                mel_c = (self.Mel_scale(clean)+1e-6).log()
                 feature = mel_n.requires_grad_()
             mask,th = self.model(mel_n,mel_c)
             if correct_spk.item() is False:
@@ -226,16 +226,16 @@ class IRMTrainer():
            
             with torch.no_grad():
                 Xb = self.pre(Xb)
-                Xb = (self.Spec(Xb)+1e-8).log()
+                Xb = self.Spec(Xb)
                 clean = self.pre(clean)
-                clean = (self.Spec(clean)+1e-8).log()
+                clean = self.Spec(clean)
                 frame_len = Xb.shape[-1]
                 start, end = self._clip_point(frame_len)
                 Xb = Xb[:,:,start:end]
                 clean = clean[:,:,start:end]
 
-                mel_n = (self.Mel_scale(Xb.exp())+1e-6).log()
-                mel_c = (self.Mel_scale(clean.exp())+1e-6).log()
+                mel_n = (self.Mel_scale(Xb)+1e-6).log()
+                mel_c = (self.Mel_scale(clean)+1e-6).log()
  
 
                 feature = mel_n.requires_grad_()
@@ -261,7 +261,7 @@ class IRMTrainer():
             
                 inverse_mask = 1-mask
                 tht_loss = self.mse(th, SaM_frame)
-                mse_loss = self.mse(mask, yb)
+                mse_loss = self.mse(mask, SaM)
                 enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
                 preserve_score, _ = self.speaker(mel_n+(mask+0.5).log(), target_spk.cuda(), 'score')
                 preserve_score = torch.mean(preserve_score)

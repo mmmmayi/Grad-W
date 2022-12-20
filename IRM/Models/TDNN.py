@@ -322,8 +322,8 @@ class decoder(nn.Module):
         scale4 = scale4*th
 
         upsample3 = self.uplayer4(scale4, encoder_out[-3])
-        upsample2 = self.uplayer3(encoder_out[-3], encoder_out[-4])
-        upsample1 = self.uplayer2(encoder_out[-4], encoder_out[-5])
+        upsample2 = self.uplayer3(upsample3, encoder_out[-4])
+        upsample1 = self.uplayer2(upsample2, encoder_out[-5])
         saliency_chans = self.saliency_chans(upsample1)
         a = torch.abs(saliency_chans[:,0,:,:])
         b = torch.abs(saliency_chans[:,1,:,:])
