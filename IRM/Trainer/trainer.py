@@ -130,7 +130,7 @@ class IRMTrainer():
                 feature = mel_n.requires_grad_()
             mask,th = self.model(mel_n,mel_c)
             if correct_spk.item() is False:
-                diff_loss = weight*torch.mean(torch.pow(mask-0.5,2))
+                diff_loss = torch.mean(torch.pow(mask-0.5,2))
                 thf_loss = torch.mean(torch.pow(th-0.5,2))
                 train_loss = thf_loss+diff_loss
                 running_diff += diff_loss.item()
@@ -212,7 +212,7 @@ class IRMTrainer():
 
     def __validation_epoch(self, epoch, weight):
         start_time = time.time()
-        running_mse_loss, running_preserve_loss, running_remove_loss, running_enh_loss, running_diff_loss, running_tft_loss, running_thf_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        running_mse_loss, running_preserve_loss, running_remove_loss, running_enh_loss, running_diff_loss, running_tht_loss, running_thf_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         i_batch,diff_batch = 0,0
         relu = nn.ReLU()
         

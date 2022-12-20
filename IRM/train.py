@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 
 ## Set up project dir
-PROJECT_DIR = "exp/frameSelector_preserve_remove0.01_enh1e3_adv1e3_thmse"
+PROJECT_DIR = "exp/frameSelector_preserve_remove0.01_enh1e3_adv_thmse"
 
 ## Config
 configs = {
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         dataset=valid_irm_dataset,
         batch_size=1,
         shuffle=None,
-        num_workers=1)
+        num_workers=8)
     ## Model, loss_fn, opt
     if configs['resume_epoch'] is not None:
         nnet = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
@@ -75,8 +75,8 @@ if __name__ == "__main__":
             #print(name, param.numel())
     total_params = sum(p.numel() for p in nnet.parameters() if p.requires_grad)
     print('Number of trainable parameters: {}'.format(total_params))
-    #optimizer = torch.optim.Adadelta(nnet.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.Adam(list(nnet.decoder.parameters())+list(nnet.decoder.parameters(nnet.embedding.parameters())))
+    #optimizer = torch.optim.Adam(nnet.decoder.parameters(), lr=configs["optimizer"]["lr"])
+    optimizer = torch.optim.Adam(list(nnet.decoder.parameters())+list(nnet.embedding.parameters()))
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
             #print(name, param.numel())

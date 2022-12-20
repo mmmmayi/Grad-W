@@ -318,7 +318,7 @@ class decoder(nn.Module):
         em = encoder_out[-1]
         scale4 = encoder_out[-2]
         act = torch.sum(scale4*em.view(-1, 256, 1, 1), 1, keepdim=True)
-        th = self.vari_sigmoid(act,50)
+        th = torch.sigmoid(act)
         scale4 = scale4*th
 
         upsample3 = self.uplayer4(scale4, encoder_out[-3])
@@ -327,7 +327,7 @@ class decoder(nn.Module):
         saliency_chans = self.saliency_chans(upsample1)
         a = torch.abs(saliency_chans[:,0,:,:])
         b = torch.abs(saliency_chans[:,1,:,:])
-        return a/(a+b+1e-6), th
+        return a/(a+b+1e-6), scale4
 
 class multi_TDNN(nn.Module):
     
@@ -338,7 +338,7 @@ class multi_TDNN(nn.Module):
         self.embedding = Speaker_resnet() 
 
         self.speaker = Speaker_resnet()
-        path = "exp/resnet.pt"
+        path = "exp/resnet_5994.pt"
         checkpoint = torch.load(path)
         self.speaker.load_state_dict(checkpoint, strict=False)
         self.embedding.load_state_dict(checkpoint, strict=False)

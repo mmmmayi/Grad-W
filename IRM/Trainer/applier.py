@@ -45,7 +45,7 @@ class IRMApplier():
         self.speaker = Speaker_resnet().cuda()
         projection = ArcMarginProduct().cuda()
         self.speaker.add_module("projection", projection)
-        path = 'exp/resnet.pt'
+        path = 'exp/resnet_5994.pt'
         checkpoint = torch.load(path)
         self.speaker.load_state_dict(checkpoint, strict=False)
         self.labels = torch.load('../lst/resnet_speaker.pt')

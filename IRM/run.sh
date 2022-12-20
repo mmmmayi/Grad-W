@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o saliencyMask_selector_preserve_remove0.01_enh1e3_adv1e3_thmse.out
+#SBATCH -o frameSelector_preserve_remove0.01_enh1e3_adv_thmse.out
 #SBATCH --gres=gpu:1
 #SBATCH -w ttnusa11
 #SBATCH --cpus-per-task=16
