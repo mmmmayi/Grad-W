@@ -130,8 +130,8 @@ class IRMTrainer():
                 feature = mel_n.requires_grad_()
             mask,th = self.model(mel_n,mel_c)
             if correct_spk.item() is False:
-                diff_loss = torch.mean(torch.pow(mask-0.5,2))
-                thf_loss = torch.mean(torch.pow(th-0.5,2))
+                diff_loss = torch.mean(torch.pow(mask,2))
+                thf_loss = torch.mean(torch.pow(th,2))
                 train_loss = thf_loss+diff_loss
                 running_diff += diff_loss.item()
                 running_thf += thf_loss.item()
@@ -139,10 +139,12 @@ class IRMTrainer():
             else:
                 score, frame = self.speaker(feature, target_spk.cuda(), 'score')
                 self.speaker.zero_grad()
-                yb_frame = torch.autograd.grad(score, frame, grad_outputs=torch.ones_like(score), retain_graph=True)[0]
+                #yb_frame = torch.autograd.grad(score, frame, grad_outputs=torch.ones_like(score), retain_graph=True)[0]
                 yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-                SaM = self.vari_sigmoid(yb,50)
-                SaM_frame = self.vari_sigmoid(yb_frame, 50)
+                max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+                SaM = = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
+                #SaM = self.vari_sigmoid(yb,50)
+                #SaM_frame = self.vari_sigmoid(yb_frame, 50)
                 '''
                 for i in range(10):
                     temp = yb_frame[0,i,:,:]
@@ -159,11 +161,11 @@ class IRMTrainer():
 
                 inverse_mask = 1-mask
                 mse_loss = self.mse(mask,SaM)
-                tht_loss = self.mse(th, SaM_frame)
-                enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
-                preserve_score, _ = self.speaker(mel_n+(mask+0.5).log(), target_spk.cuda(), 'score')
+                tht_loss = torch.mean(torch.pow(th-1,2))
+                enh_loss = self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
+                preserve_score, _ = self.speaker(mel_n+(mask+1).log(), target_spk.cuda(), 'score')
                 preserve_score = torch.mean(preserve_score)
-                remove_score, _ = self.speaker(mel_n+(inverse_mask+0.5).log(), target_spk.cuda(), 'score')
+                remove_score, _ = self.speaker(mel_n+(inverse_mask+1).log(), target_spk.cuda(), 'score')
                 remove_score = torch.mean(remove_score)
                 train_loss = mse_loss-preserve_score+weight*enh_loss+0.01*remove_score+tht_loss
                 running_mse += mse_loss.item()
@@ -241,18 +243,20 @@ class IRMTrainer():
                 feature = mel_n.requires_grad_()
             mask,th = self.model(mel_n, mel_c)
             if correct_spk.item() is False:
-                thf_loss = torch.mean(torch.pow(th-0.5,2))
-                val_loss = torch.mean(torch.pow(mask-0.5,2))
+                thf_loss = torch.mean(torch.pow(th,2))
+                val_loss = torch.mean(torch.pow(mask,2))
                 running_diff_loss += val_loss.item()
                 running_thf_loss += thf_loss.item()
                 diff_batch += 1
             else:
                 score, frame = self.speaker(feature, target_spk.cuda(), 'score')
                 self.speaker.zero_grad()
-                yb_frame = torch.autograd.grad(score, frame, grad_outputs=torch.ones_like(score), retain_graph=True)[0]
+                #yb_frame = torch.autograd.grad(score, frame, grad_outputs=torch.ones_like(score), retain_graph=True)[0]
                 yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-                SaM = self.vari_sigmoid(yb,50)
-                SaM_frame = self.vari_sigmoid(yb_frame,50)
+                max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+                SaM = = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
+                #SaM = self.vari_sigmoid(yb,50)
+                #SaM_frame = self.vari_sigmoid(yb_frame,50)
             #frame_len = mel_c.shape[-1]
             #if frame_len%8>0:
                 #pad_num = math.ceil(frame_len/8)*8-frame_len
@@ -260,12 +264,12 @@ class IRMTrainer():
                 #mel_c_ = pad(mel_c)
             
                 inverse_mask = 1-mask
-                tht_loss = self.mse(th, SaM_frame)
+                tht_loss = torch.mean(torch.pow(th-1,2))
                 mse_loss = self.mse(mask, SaM)
-                enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
-                preserve_score, _ = self.speaker(mel_n+(mask+0.5).log(), target_spk.cuda(), 'score')
+                enh_loss = self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
+                preserve_score, _ = self.speaker(mel_n+(mask+1).log(), target_spk.cuda(), 'score')
                 preserve_score = torch.mean(preserve_score)
-                remove_score, _ = self.speaker(mel_n+(inverse_mask+0.5).log(), target_spk.cuda(), 'score')
+                remove_score, _ = self.speaker(mel_n+(inverse_mask+1).log(), target_spk.cuda(), 'score')
                 remove_score = torch.mean(remove_score)
                 running_mse_loss += mse_loss.item()
                 running_preserve_loss += 0-preserve_score.item()

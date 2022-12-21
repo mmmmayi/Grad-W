@@ -327,7 +327,7 @@ class decoder(nn.Module):
         saliency_chans = self.saliency_chans(upsample1)
         a = torch.abs(saliency_chans[:,0,:,:])
         b = torch.abs(saliency_chans[:,1,:,:])
-        return a/(a+b+1e-6), scale4
+        return a/(a+b+1e-6), th
 
 class multi_TDNN(nn.Module):
     
