@@ -110,7 +110,7 @@ class IRMTrainer():
         for sample_batched in self.train_dataloader:
             # Load data from trainloader
             Xb, target_spk, clean, correct_spk  = sample_batched
-            
+            local_rank = int(os.environ["LOCAL_RANK"])
             _, B, _, W = Xb.shape
             Xb = Xb.reshape(B,W).cuda()
             clean = clean.reshape(B,W).cuda()
@@ -128,7 +128,7 @@ class IRMTrainer():
                 mel_n = (self.Mel_scale(Xb)+1e-6).log()
                 mel_c = (self.Mel_scale(clean)+1e-6).log()
                 feature = mel_n.requires_grad_()
-            mask,th = self.model(mel_n,mel_c)
+            mask,th = self.model(mel_n.cuda(local_rank),mel_c.cuda(local_rank))
             if correct_spk.item() is False:
                 diff_loss = torch.mean(torch.pow(mask,2))
                 thf_loss = torch.mean(torch.pow(th,2))
@@ -142,7 +142,7 @@ class IRMTrainer():
                 #yb_frame = torch.autograd.grad(score, frame, grad_outputs=torch.ones_like(score), retain_graph=True)[0]
                 yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
                 max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-                SaM = = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
+                SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
                 #SaM = self.vari_sigmoid(yb,50)
                 #SaM_frame = self.vari_sigmoid(yb_frame, 50)
                 '''
@@ -162,7 +162,7 @@ class IRMTrainer():
                 inverse_mask = 1-mask
                 mse_loss = self.mse(mask,SaM)
                 tht_loss = torch.mean(torch.pow(th-1,2))
-                enh_loss = self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
+                enh_loss = self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2)
                 preserve_score, _ = self.speaker(mel_n+(mask+1).log(), target_spk.cuda(), 'score')
                 preserve_score = torch.mean(preserve_score)
                 remove_score, _ = self.speaker(mel_n+(inverse_mask+1).log(), target_spk.cuda(), 'score')
@@ -254,7 +254,7 @@ class IRMTrainer():
                 #yb_frame = torch.autograd.grad(score, frame, grad_outputs=torch.ones_like(score), retain_graph=True)[0]
                 yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
                 max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-                SaM = = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
+                SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
                 #SaM = self.vari_sigmoid(yb,50)
                 #SaM_frame = self.vari_sigmoid(yb_frame,50)
             #frame_len = mel_c.shape[-1]
@@ -266,7 +266,7 @@ class IRMTrainer():
                 inverse_mask = 1-mask
                 tht_loss = torch.mean(torch.pow(th-1,2))
                 mse_loss = self.mse(mask, SaM)
-                enh_loss = self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2))
+                enh_loss = self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2)
                 preserve_score, _ = self.speaker(mel_n+(mask+1).log(), target_spk.cuda(), 'score')
                 preserve_score = torch.mean(preserve_score)
                 remove_score, _ = self.speaker(mel_n+(inverse_mask+1).log(), target_spk.cuda(), 'score')
@@ -321,7 +321,7 @@ class IRMTrainer():
         torch.save(standard_dev,"/data_a11/mayi/project/SIP/IRM/exp/resnet_std.pt")
 
 
-    def train(self, weight, resume_epoch=None):
+    def train(self, weight, local_rank, resume_epoch=None):
         ## Init training
         # Resume from last epoch
         if resume_epoch != None:
@@ -345,5 +345,6 @@ class IRMTrainer():
 
             self.__set_models_to_train_mode()
             self.__train_epoch(epoch, weight)
-            self.__set_models_to_eval_mode()
-            self.__validation_epoch(epoch, weight)
+            if local_rank == 0:
+                self.__set_models_to_eval_mode()
+                self.__validation_epoch(epoch, weight)

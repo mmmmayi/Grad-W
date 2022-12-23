@@ -12,9 +12,9 @@ from Models.dataset import IRMDataset, ToTensor
 from Models.models import BLSTM
 from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
-
+import torch.distributed as dist
 ## Set up project dir
-PROJECT_DIR = "exp/frameSelector_preserve_remove0.01_enh1e3_adv_thmse_pos"
+PROJECT_DIR = "exp/temp"
 
 ## Config
 configs = {
@@ -29,12 +29,15 @@ configs = {
     "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
+    "gpu":[0,1],
     "optimizer": {
         "lr": 0.001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
 if __name__ == "__main__":
+    local_rank = int(os.environ["LOCAL_RANK"])
+    dist.init_process_group(backend="nccl")
     ## Dataloader
     # train
     train_irm_dataset = IRMDataset(
@@ -44,10 +47,12 @@ if __name__ == "__main__":
         spk="../lst/train_spk.lst",
         batch_size=configs["batchsize"], dur=configs["dur"],
         sampling_rate=16000, mode="train", max_size=200000, data=configs["data"])
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_irm_dataset)
     train_loader = DataLoader(
         dataset=train_irm_dataset,
         batch_size=1,
         shuffle=None,
+        sampler=train_sampler,
         num_workers=16)
        
     #print('check dataset length:',len(train_irm_dataset))    
@@ -69,6 +74,7 @@ if __name__ == "__main__":
         nnet = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
     else:
         nnet = multi_TDNN()
+    nnet = torch.nn.parallel.DistributedDataParallel(nnet.cuda(local_rank), device_ids=[local_rank], output_device=local_rank)
     #print('Learnable parameters of the model:')
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
@@ -76,7 +82,7 @@ if __name__ == "__main__":
     total_params = sum(p.numel() for p in nnet.parameters() if p.requires_grad)
     print('Number of trainable parameters: {}'.format(total_params))
     #optimizer = torch.optim.Adam(nnet.decoder.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.Adam(list(nnet.decoder.parameters())+list(nnet.embedding.parameters()))
+    optimizer = torch.optim.Adam(list(nnet.module.decoder.parameters())+list(nnet.module.embedding.parameters()))
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
             #print(name, param.numel())
@@ -96,4 +102,4 @@ if __name__ == "__main__":
         model=nnet, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,BCE_loss], dur = configs["dur"],
         train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"])
     #irm_trainer._get_global_mean_variance()
-    irm_trainer.train(configs["weight"], configs["resume_epoch"])
+    irm_trainer.train(configs["weight"], local_rank, configs["resume_epoch"])
