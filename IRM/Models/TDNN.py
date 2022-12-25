@@ -379,7 +379,7 @@ class multi_TDNN(nn.Module):
         score,feature = self.speaker(input, target, 'score')
         self.speaker.zero_grad()
         yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-
+        return yb
     def forward(self,input,ref):
         self.speaker.eval()
         #for name, param in self.speaker.parameters():

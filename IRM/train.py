@@ -51,11 +51,12 @@ if __name__ == "__main__":
         spk="../lst/train_spk.lst",
         batch_size=configs["batchsize"], dur=configs["dur"],
         sampling_rate=16000, mode="train", max_size=200000, data=configs["data"])
-    #train_sampler = torch.utils.data.distributed.DistributedSampler(train_irm_dataset)
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_irm_dataset)
     train_loader = DataLoader(
         dataset=train_irm_dataset,
         batch_size=1,
         shuffle=None,
+        sampler=train_sampler,
         num_workers=16)
        
     #print('check dataset length:',len(train_irm_dataset))    
@@ -77,7 +78,9 @@ if __name__ == "__main__":
         nnet = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
     else:
         nnet = multi_TDNN(dur=configs["dur"])
-    nnet = torch.nn.parallel.DistributedDataParallel(nnet.cuda())
+    nnet.cuda()
+    nnet = nnet.to(f'cuda:{local_rank}')
+    nnet = torch.nn.parallel.DistributedDataParallel(nnet)
     #nnet = torch.nn.parallel.DistributedDataParallel(nnet.cuda(local_rank), device_ids=[local_rank], output_device=local_rank)
     #print('Learnable parameters of the model:')
     #for name, param in nnet.named_parameters():
