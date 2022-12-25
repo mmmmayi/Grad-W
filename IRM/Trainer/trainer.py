@@ -83,7 +83,19 @@ class IRMTrainer():
                 print(f)
                 pass  # node has no tensor
             if f is not None:
-                yield from get_contributing_params(f, top_level=False)
+                yield from self.get_contributing_params(f, top_level=False)
+
+    def cw_loss(self,logits, target_spk, device, targeted=True, t_conf=2, nt_conf=5):
+        depth = logits.shape[-1]
+        one_hot_labels = torch.zeros(target_spk.size(0), depth).cuda().to(device)
+        
+        one_hot_labels =torch.zeros(target_spk.size(0), depth).cuda().to(device).scatter_(1, target_spk.view(-1, 1).data, 1)
+        this = torch.sum(logits*one_hot_labels, 1)
+        other_best, _ = torch.max(logits*(1.-one_hot_labels) - 12111*one_hot_labels, 1)   # subtracting 12111 from selected labels to make sure that they dont end up a maximum
+        t = F.relu(other_best - this + t_conf)
+        nt = F.relu(this - other_best + nt_conf)
+        if isinstance(targeted, (bool, int)):
+            return torch.mean(t) if targeted else torch.mean(nt)
 
     def __train_epoch(self, epoch, weight, device):
         relu = nn.ReLU()
@@ -112,8 +124,6 @@ class IRMTrainer():
                 yb = self.model.module.get_gradient(Xb,target_spk)
                 max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
                 SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
-                #SaM = self.vari_sigmoid(yb,50)
-                #SaM_frame = self.vari_sigmoid(yb_frame, 50)
                 '''
                 for i in range(10):
                     temp = yb_frame[0,i,:,:]
@@ -131,12 +141,12 @@ class IRMTrainer():
                 inverse_mask = 1-mask
                 mse_loss = self.mse(mask,SaM)
                 tht_loss = torch.mean(torch.pow(th-1,2))
-                enh_loss = torch.mean(self.vari_ReLU(yb,self.ratio,device)*torch.pow(relu(SaM-mask,device),2))
-                preserve_score, _ = self.model.module.speaker(Xb, target_spk, 'score')
-                preserve_score = torch.mean(preserve_score)
-                remove_score, _ = self.model.module.speaker(Xb, target_spk, 'score')
-                remove_score = torch.mean(remove_score)
-                train_loss = mse_loss+preserve_score+weight*enh_loss+0.01*remove_score+tht_loss
+                enh_loss = torch.mean(self.vari_ReLU(yb,self.ratio,device)*torch.pow(relu(SaM-mask),2))
+                logits = self.model.module.speaker(Xb, target_spk, 'loss')
+                preserve_score =  self.cw_loss(logits, target_spk, device,True)
+                logits = self.model.module.speaker(Xb, target_spk, 'loss')
+                remove_score = self.cw_loss(logits,target_spk,device,False)
+                train_loss = 10*mse_loss+preserve_score+weight*enh_loss+0.01*remove_score+tht_loss
                 running_mse += mse_loss.item()
                 running_preserve += preserve_score.item()
                 running_remove += remove_score.item()
@@ -153,10 +163,6 @@ class IRMTrainer():
                 quit()
             
             self.optimizer.step()
-            contributing_parameters = set(self.get_contributing_params(mask))
-            all_parameters = set(self.model.parameters())
-            non_contributing = all_parameters - contributing_parameters
-            print(non_contributing)
             torch.cuda.empty_cache()
             if device == 0:
                 self.logger.info("Loss of minibatch {}-th/{}: {}, lr:{}".format(i_batch+diff_batch, len(self.train_dataloader), train_loss.item(), self.optimizer.param_groups[0]['lr']))
@@ -225,12 +231,12 @@ class IRMTrainer():
                 tht_loss = torch.mean(torch.pow(th-1,2))
                 mse_loss = self.mse(mask, SaM)
                 enh_loss = torch.mean(self.vari_ReLU(yb,self.ratio,deivce)*torch.pow(relu(SaM-mask),2))
-                preserve_score, _ = self.model.module.speaker(mel_n+(mask+1).log(), target_spk, 'score')
-                preserve_score = torch.mean(preserve_score)
-                remove_score, _ = self.model.module.speaker(mel_n+(inverse_mask+1).log(), target_spk, 'score')
-                remove_score = torch.mean(remove_score)
+                logits = self.model.module.speaker(Xb, target_spk, 'loss')
+                preserve_score = self.cw_loss(logits, target_spk, device, True)
+                logits = self.model.module.speaker(Xb, target_spk, 'loss')
+                remove_score = self.cw_loss(logits,target_spk,device, False)
                 running_mse_loss += mse_loss.item()
-                running_preserve_loss += 0-preserve_score.item()
+                running_preserve_loss += preserve_score.item()
                 running_enh_loss += enh_loss.item()
                 running_tht_loss += tht_loss.item()
                 running_remove_loss += remove_score.item()
@@ -282,7 +288,6 @@ class IRMTrainer():
     def train(self, weight, local_rank, device=torch.device('cuda'), resume_epoch=None):
         ## Init training
         # Resume from last epoch
-        print('device',device)
         if resume_epoch != None:
             if local_rank == 0:
 

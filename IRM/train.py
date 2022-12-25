@@ -39,6 +39,7 @@ if __name__ == "__main__":
     local_rank = int(os.environ["LOCAL_RANK"])
     gpu = int(configs['gpu'][local_rank])
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
+    os.environ['TORCH_DISTRIBUTED_DEBUG']='DETAIL'
 
     dist.init_process_group(backend="nccl")
     #dist.barrier() 
@@ -80,7 +81,7 @@ if __name__ == "__main__":
         nnet = multi_TDNN(dur=configs["dur"])
     nnet.cuda()
     nnet = nnet.to(f'cuda:{local_rank}')
-    nnet = torch.nn.parallel.DistributedDataParallel(nnet)
+    nnet = torch.nn.parallel.DistributedDataParallel(nnet, find_unused_parameters=True)
     #nnet = torch.nn.parallel.DistributedDataParallel(nnet.cuda(local_rank), device_ids=[local_rank], output_device=local_rank)
     #print('Learnable parameters of the model:')
     #for name, param in nnet.named_parameters():

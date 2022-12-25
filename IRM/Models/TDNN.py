@@ -92,7 +92,7 @@ class ArcMarginProduct(nn.Module):
         self.mm = math.sin(math.pi - margin) * margin
         self.m = self.margin
         self.mmm = 1.0 + math.cos(math.pi - margin)
-    def forward(self, input, label):
+    def forward(self, input, label, mode='score'):
         cosine = F.linear(F.normalize(input), F.normalize(self.weight))
         #return cosine
         sine = torch.sqrt(1.0 - torch.pow(cosine, 2))
@@ -110,8 +110,12 @@ class ArcMarginProduct(nn.Module):
         output = (one_hot * phi) + ((1.0 - one_hot) * cosine)
         output *= self.scale
 
-        return output
+        
+        if mode=='score':
 
+            return output
+        else:
+            return cosine*self.scale
     def extra_repr(self):
         return '''in_features={}, out_features={}, scale={},
                   margin={}, easy_margin={}'''.format(self.in_features,
@@ -238,7 +242,7 @@ class Speaker_resnet(nn.Module):
         #print('layer3 shape:',out.shape)#[B,128,20,T/4]
         out4 = self.layer4(out3)
         #print('layer4 shape:',out.shape)#[B,256,10,T/8]
-        frame = out4.requires_grad_()
+        #frame = out4.requires_grad_()
         stats = self.pool(out4)
         embed_a = self.seg_1(stats)
         '''
@@ -256,10 +260,13 @@ class Speaker_resnet(nn.Module):
             return [out1,out2,out3,out4]
         elif mode == 'reference':
             return embed_a
-        elif mode == 'score':
+        elif mode in ['score','loss']:
             score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
-            return result, feature
+            if mode == 'score':
+                return result, feature
+            else:
+                return score
 
 class PixelShuffleBlock(nn.Module):
     def forward(self, x):

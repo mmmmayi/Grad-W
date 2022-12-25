@@ -181,7 +181,6 @@ def sort(path, path_sorted, spk_list,dur, sub):
             spk_utt[spk] = [utt]
         if i>num:
             break
-    print(len(utts_temp))
     sort_utts = sorted(utts_temp,key=lambda info:int(info[1]),reverse=False)
     for utt in sort_utts:
         utts.append(utt[0])
