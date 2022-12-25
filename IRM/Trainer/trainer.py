@@ -38,11 +38,6 @@ class IRMTrainer():
         self.model = model
         self.mode = mode
         self.dur = dur
-        self.pre = PreEmphasis()
-        self.Spec = torchaudio.transforms.Spectrogram(n_fft=512, win_length=400, hop_length=160, pad=0, window_fn=torch.hamming_window, power=2).cuda()
-        self.Mel_scale = torchaudio.transforms.MelScale(80,16000,20,7600,512//2+1).cuda()
-
-        self.MelSpec = torchaudio.transforms.MelSpectrogram(sample_rate=16000, n_fft=512, win_length=400, hop_length=160, f_min = 20, f_max = 7600, window_fn=torch.hamming_window, n_mels=80).cuda()
         # Init project dir
         self.PROJECT_DIR = project_dir
         if not os.path.exists(f"{self.PROJECT_DIR}/models"):
@@ -59,19 +54,10 @@ class IRMTrainer():
         self.writer = SummaryWriter(comment=comment)
         self.logger = get_logger(f"{self.PROJECT_DIR}/LOG")
         self.logger.info(self.config)
-        self.speaker = Speaker_resnet().cuda()
-        projection = ArcMarginProduct().cuda()
-        self.speaker.add_module("projection", projection)
-        path = 'exp/resnet_5994.pt'
-        checkpoint = torch.load(path)
-
-        self.speaker.load_state_dict(checkpoint, strict=False)
-        state_dict = self.speaker.state_dict()
         #for name,para in state_dict.items():
             #print(name)
         #for p in self.speaker.parameters():
             #p.requires_grad = False
-        self.speaker.eval()
 
         print(f"log file at: {self.PROJECT_DIR}/LOG.log")
 
@@ -89,20 +75,8 @@ class IRMTrainer():
         reg = torch.where(x > max*th, x, torch.tensor(0, dtype=x.dtype).cuda())
         return reg/max
 
-    def _clip_point(self, frame_len):
-        clip_length = 100*self.dur
-        start_point = 0
-        end_point = frame_len
-        if frame_len>=clip_length:
-            start_point = np.random.randint(0, frame_len - clip_length + 1)
-            end_point = start_point + clip_length
-        else:
-            print('bug exists in clip point')
-            quit()
-        return start_point, end_point
 
-
-    def __train_epoch(self, epoch, weight):
+    def __train_epoch(self, epoch, weight, device):
         relu = nn.ReLU()
         running_mse, running_preserve, running_remove, running_enh, running_diff, running_thf, running_tht = 0,0,0,0,0,0,0
         i_batch,diff_batch = 0,0
@@ -110,25 +84,13 @@ class IRMTrainer():
         for sample_batched in self.train_dataloader:
             # Load data from trainloader
             Xb, target_spk, clean, correct_spk  = sample_batched
+            #print(Xb.device)
             local_rank = int(os.environ["LOCAL_RANK"])
             _, B, _, W = Xb.shape
-            Xb = Xb.reshape(B,W).cuda()
-            clean = clean.reshape(B,W).cuda()
-            target_spk = target_spk.reshape(B)
-            with torch.no_grad():
-                Xb = self.pre(Xb)
-                Xb = self.Spec(Xb) 
-                clean = self.pre(clean)
-                clean = self.Spec(clean)
- 
-                frame_len = Xb.shape[-1]
-                start, end = self._clip_point(frame_len) 
-                Xb = Xb[:,:,start:end]
-                clean = clean[:,:,start:end] 
-                mel_n = (self.Mel_scale(Xb)+1e-6).log()
-                mel_c = (self.Mel_scale(clean)+1e-6).log()
-                feature = mel_n.requires_grad_()
-            mask,th = self.model(mel_n.cuda(local_rank),mel_c.cuda(local_rank))
+            Xb = Xb.reshape(B,W).cuda().to(device)
+            clean = clean.reshape(B,W).cuda().to(device)
+            target_spk = target_spk.reshape(B).to(device)
+            mask,th = self.model(Xb,clean)
             if correct_spk.item() is False:
                 diff_loss = torch.mean(torch.pow(mask,2))
                 thf_loss = torch.mean(torch.pow(th,2))
@@ -137,10 +99,8 @@ class IRMTrainer():
                 running_thf += thf_loss.item()
                 diff_batch += 1
             else:
-                score, frame = self.speaker(feature, target_spk.cuda(), 'score')
-                self.speaker.zero_grad()
                 #yb_frame = torch.autograd.grad(score, frame, grad_outputs=torch.ones_like(score), retain_graph=True)[0]
-                yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
+                yb = self.model.get_gradient(Xb,target_spk)
                 max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
                 SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
                 #SaM = self.vari_sigmoid(yb,50)
@@ -163,9 +123,9 @@ class IRMTrainer():
                 mse_loss = self.mse(mask,SaM)
                 tht_loss = torch.mean(torch.pow(th-1,2))
                 enh_loss = self.vari_ReLU(yb,self.ratio)*torch.pow(relu(SaM-mask),2)
-                preserve_score, _ = self.speaker(mel_n+(mask+1).log(), target_spk.cuda(), 'score')
+                preserve_score, _ = self.model.speaker(Xb, target_spk.cuda(), 'score')
                 preserve_score = torch.mean(preserve_score)
-                remove_score, _ = self.speaker(mel_n+(inverse_mask+1).log(), target_spk.cuda(), 'score')
+                remove_score, _ = self.model.speaker(Xb, target_spk.cuda(), 'score')
                 remove_score = torch.mean(remove_score)
                 train_loss = mse_loss-preserve_score+weight*enh_loss+0.01*remove_score+tht_loss
                 running_mse += mse_loss.item()
@@ -212,7 +172,7 @@ class IRMTrainer():
     def __set_models_to_eval_mode(self):
         self.model.eval()
 
-    def __validation_epoch(self, epoch, weight):
+    def __validation_epoch(self, epoch, weight, device):
         start_time = time.time()
         running_mse_loss, running_preserve_loss, running_remove_loss, running_enh_loss, running_diff_loss, running_tht_loss, running_thf_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         i_batch,diff_batch = 0,0
@@ -321,11 +281,14 @@ class IRMTrainer():
         torch.save(standard_dev,"/data_a11/mayi/project/SIP/IRM/exp/resnet_std.pt")
 
 
-    def train(self, weight, local_rank, resume_epoch=None):
+    def train(self, weight, local_rank, device=torch.device('cuda'), resume_epoch=None):
         ## Init training
         # Resume from last epoch
+        print('device',device)
         if resume_epoch != None:
-            print('start from epoch',resume_epoch)
+            if local_rank == 0:
+
+                print('start from epoch',resume_epoch)
             start_epoch = resume_epoch
         else:
             start_epoch = 1
@@ -335,16 +298,18 @@ class IRMTrainer():
                 VALID_LOSS.write(f"epoch,file_name,loss,snr,seg_snr,pesq\n")
 
         ## Load model to device
-            print('begin to train')
-            if torch.cuda.device_count() >= 1:
+            if local_rank == 0:
+
+                print('begin to train')
+    #        if torch.cuda.device_count() >= 1:
             
-                self.model = nn.DataParallel(self.model).cuda()
+    #            self.model = nn.DataParallel(self.model).cuda()
 
         ## Train and validate
         for epoch in range(start_epoch+1, self.config["num_epochs"]+1):
 
             self.__set_models_to_train_mode()
-            self.__train_epoch(epoch, weight)
+            self.__train_epoch(epoch, weight, local_rank)
             if local_rank == 0:
                 self.__set_models_to_eval_mode()
-                self.__validation_epoch(epoch, weight)
+                self.__validation_epoch(epoch, weight,device)

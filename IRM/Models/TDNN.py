@@ -7,10 +7,11 @@ This model is modified and combined based on the following three projects:
 
 '''
 import matplotlib.pyplot as plt
-import math, torch, torchaudio, librosa.display
+import math, torch, torchaudio, librosa.display,numpy
 import torch.nn as nn
 import torch.nn.functional as F
 from Models.models import BLSTM
+from Models.models import PreEmphasis
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -144,9 +145,11 @@ class Speaker_resnet(nn.Module):
                  m_channels=32,
                  feat_dim=80,
                  embed_dim=256,
-                 pooling_func='TSTP'):
+                 pooling_func='TSTP',
+                 dur=4):
         super(Speaker_resnet, self).__init__()
         block = BasicBlock
+        self.dur=dur
         self.in_planes = m_channels
         self.feat_dim = feat_dim
         self.embed_dim = embed_dim
@@ -154,6 +157,7 @@ class Speaker_resnet(nn.Module):
         self.two_emb_layer = False
         self.Spec = torchaudio.transforms.Spectrogram(n_fft=512, win_length=400, hop_length=160, pad=0, window_fn=torch.hamming_window, power=2.0)
         self.Mel_scale = torchaudio.transforms.MelScale(80,16000,20,7600,512//2+1)
+        self.pre =  PreEmphasis()
         self.conv1 = nn.Conv2d(1,
                                m_channels,
                                kernel_size=3,
@@ -197,11 +201,31 @@ class Speaker_resnet(nn.Module):
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
 
+    def _clip_point(self, frame_len):
+        clip_length = 100*self.dur
+        start_point = 0
+        end_point = frame_len
+        if frame_len>=clip_length:
+            start_point = numpy.random.randint(0, frame_len - clip_length + 1)
+            end_point = start_point + clip_length
+        else:
+            print('bug exists in clip point')
+            quit()
+        return start_point, end_point
+
     def forward(self, x, targets=None, mode='feature'):
+        with torch.no_grad():
+            x = self.pre(x)
+            x = self.Spec(x)
+            frame_len = x.shape[-1]
+            start, end = self._clip_point(frame_len)
+            x = x[:,:,start:end]
+            x = (self.Mel_scale(x)+1e-6).log()
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
-        x = x - torch.mean(x, dim=-1, keepdim=True)
+        feature = x.requires_grad_()
+        x = feature - torch.mean(feature, dim=-1, keepdim=True)
         #x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
         x = x.unsqueeze_(1)
         out = F.relu(self.bn1(self.conv1(x)))
@@ -235,7 +259,7 @@ class Speaker_resnet(nn.Module):
         elif mode == 'score':
             score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
-            return result, frame
+            return result, feature
 
 class PixelShuffleBlock(nn.Module):
     def forward(self, x):
@@ -331,13 +355,18 @@ class decoder(nn.Module):
 
 class multi_TDNN(nn.Module):
     
-    def __init__(self):
+    def __init__(self,dur):
         super(multi_TDNN, self).__init__()
         
         self.decoder = decoder()
-        self.embedding = Speaker_resnet() 
+        self.embedding = Speaker_resnet(dur=dur) 
 
-        self.speaker = Speaker_resnet()
+        self.speaker = Speaker_resnet(dur=dur)
+        #for name in self.speaker.parameters():
+            #print(name)
+
+        projection = ArcMarginProduct()
+        self.speaker.add_module("projection", projection)
         path = "exp/resnet_5994.pt"
         checkpoint = torch.load(path)
         self.speaker.load_state_dict(checkpoint, strict=False)
@@ -346,9 +375,18 @@ class multi_TDNN(nn.Module):
         #for p in self.speaker.parameters():
             #p.requires_grad = False
         self.speaker.eval()
+    def get_gradient(self,input,target):
+        score,feature = self.speaker(input, target, 'score')
+        self.speaker.zero_grad()
+        yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
+
     def forward(self,input,ref):
         self.speaker.eval()
-       
+        #for name, param in self.speaker.parameters():
+            #print(name)
+        #print(next(self.speaker.parameters()).device)
+            #print('input:{},speaker:{}'.format(input.device,i.device))
+        
         encoder_out = self.speaker(input,mode='encoder')
         embed = self.embedding(ref,mode='reference')
         encoder_out.append(embed)
