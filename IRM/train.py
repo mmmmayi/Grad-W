@@ -23,7 +23,7 @@ configs = {
     "output_dim": 257,
     "num_layers": 3,        
     "num_epochs": 100,
-    "batchsize": 16,
+    "batchsize": 14,
     "data": 'noisy',
     "dur": 4,
     "weight": 1000,
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         nnet = multi_TDNN(dur=configs["dur"])
     nnet.cuda()
     nnet = nnet.to(f'cuda:{local_rank}')
-    nnet = torch.nn.parallel.DistributedDataParallel(nnet, find_unused_parameters=True)
+    nnet = torch.nn.parallel.DistributedDataParallel(nnet, find_unused_parameters=False)
     #nnet = torch.nn.parallel.DistributedDataParallel(nnet.cuda(local_rank), device_ids=[local_rank], output_device=local_rank)
     #print('Learnable parameters of the model:')
     #for name, param in nnet.named_parameters():
@@ -110,7 +110,7 @@ if __name__ == "__main__":
         config=configs,
         project_dir=PROJECT_DIR,
         model=nnet, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,BCE_loss], dur = configs["dur"],
-        train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"])
+        train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"],        local_rank=local_rank)
     device = torch.device("cuda")
     #irm_trainer._get_global_mean_variance()
     irm_trainer.train(configs["weight"], local_rank, resume_epoch=configs["resume_epoch"])

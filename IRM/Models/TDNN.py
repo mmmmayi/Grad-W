@@ -217,7 +217,7 @@ class Speaker_resnet(nn.Module):
             quit()
         return start_point, end_point
 
-    def forward(self, x, targets=None, mode='feature'):
+    def forward(self, x, targets=None, mode='feature', mask=None):
         with torch.no_grad():
             x = self.pre(x)
             x = self.Spec(x)
@@ -225,6 +225,8 @@ class Speaker_resnet(nn.Module):
             start, end = self._clip_point(frame_len)
             x = x[:,:,start:end]
             x = (self.Mel_scale(x)+1e-6).log()
+            if mask is not None:
+                x = x+(mask+1).log()
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
@@ -379,14 +381,11 @@ class multi_TDNN(nn.Module):
         self.speaker.load_state_dict(checkpoint, strict=False)
         self.embedding.load_state_dict(checkpoint, strict=False)
 
-        #for p in self.speaker.parameters():
-            #p.requires_grad = False
+        for p in self.speaker.parameters():
+            #if 'projection' in name:
+                #print('param',param)
+            p.requires_grad = False
         self.speaker.eval()
-    def get_gradient(self,input,target):
-        score,feature = self.speaker(input, target, 'score')
-        self.speaker.zero_grad()
-        yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-        return yb
     def forward(self,input,ref):
         self.speaker.eval()
         #for name, param in self.speaker.parameters():

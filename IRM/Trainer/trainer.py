@@ -19,7 +19,7 @@ class IRMTrainer():
     def __init__(self,
             config, project_dir,
             model, optimizer, loss_fn, dur,
-            train_dl, validation_dl, mode, ratio):
+            train_dl, validation_dl, mode, ratio, local_rank):
         # Init device
         self.config = config
 
@@ -40,8 +40,9 @@ class IRMTrainer():
         self.dur = dur
         # Init project dir
         self.PROJECT_DIR = project_dir
-        if not os.path.exists(f"{self.PROJECT_DIR}/models"):
-            os.makedirs(f"{self.PROJECT_DIR}/models")
+        if local_rank==0:
+            if not os.path.exists(f"{self.PROJECT_DIR}/models"):
+                os.makedirs(f"{self.PROJECT_DIR}/models")
         
         self.mean = torch.load("exp/resnet_mean.pt").float().cuda()
         self.std = torch.load("exp/resnet_mean.pt").float().cuda()
@@ -51,15 +52,23 @@ class IRMTrainer():
         
         # Setup logger
         comment = project_dir.split('/')[-1]
-        self.writer = SummaryWriter(comment=comment)
-        self.logger = get_logger(f"{self.PROJECT_DIR}/LOG")
-        self.logger.info(self.config)
+        if local_rank==0:
+            self.writer = SummaryWriter(comment=comment)
+            self.logger = get_logger(f"{self.PROJECT_DIR}/LOG")
+            self.logger.info(self.config)
         #for name,para in state_dict.items():
             #print(name)
         #for p in self.speaker.parameters():
             #p.requires_grad = False
 
-        print(f"log file at: {self.PROJECT_DIR}/LOG.log")
+            print(f"log file at: {self.PROJECT_DIR}/LOG.log")
+        self.auxl = Speaker_resnet()
+        projection = ArcMarginProduct()
+        self.auxl.add_module("projection", projection)
+        self.auxl = self.auxl.cuda().to(local_rank)
+        checkpoint = torch.load('exp/resnet_5994.pt')
+        self.auxl.load_state_dict(checkpoint, strict=False)
+        self.auxl.eval()
 
     def __set_models_to_train_mode(self):
         self.model.train()
@@ -106,7 +115,6 @@ class IRMTrainer():
             # Load data from trainloader
             Xb, target_spk, clean, correct_spk  = sample_batched
             #print(Xb.device)
-            local_rank = int(os.environ["LOCAL_RANK"])
             _, B, _, W = Xb.shape
             Xb = Xb.reshape(B,W).cuda().to(device)
             clean = clean.reshape(B,W).cuda().to(device)
@@ -120,8 +128,9 @@ class IRMTrainer():
                 running_thf += thf_loss.item()
                 diff_batch += 1
             else:
-                #yb_frame = torch.autograd.grad(score, frame, grad_outputs=torch.ones_like(score), retain_graph=True)[0]
-                yb = self.model.module.get_gradient(Xb,target_spk)
+                score,feature = self.auxl(Xb, target_spk, 'score')
+                self.auxl.zero_grad()
+                yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
                 max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
                 SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
                 '''
@@ -140,17 +149,19 @@ class IRMTrainer():
 
                 inverse_mask = 1-mask
                 mse_loss = self.mse(mask,SaM)
+                #mse_loss = torch.mean(torch.pow(mask,2))
                 tht_loss = torch.mean(torch.pow(th-1,2))
                 enh_loss = torch.mean(self.vari_ReLU(yb,self.ratio,device)*torch.pow(relu(SaM-mask),2))
-                logits = self.model.module.speaker(Xb, target_spk, 'loss')
+                logits = self.auxl(Xb, target_spk, 'loss', mask)
                 preserve_score =  self.cw_loss(logits, target_spk, device,True)
-                logits = self.model.module.speaker(Xb, target_spk, 'loss')
+                logits = self.auxl(Xb, target_spk, 'loss', mask)
                 remove_score = self.cw_loss(logits,target_spk,device,False)
                 train_loss = 10*mse_loss+preserve_score+weight*enh_loss+0.01*remove_score+tht_loss
+                #train_loss = mse_loss+tht_loss+enh_loss
                 running_mse += mse_loss.item()
-                running_preserve += preserve_score.item()
-                running_remove += remove_score.item()
-                running_enh += enh_loss.item()
+                #running_preserve += preserve_score.item()
+                #running_remove += remove_score.item()
+                #running_enh += enh_loss.item()
                 running_tht += tht_loss.item()
                 i_batch += 1
 
@@ -216,7 +227,9 @@ class IRMTrainer():
                 running_thf_loss += thf_loss.item()
                 diff_batch += 1
             else:
-                yb = self.model.module.get_gradient(Xb,target_spk)
+                score,feature = self.auxl(Xb, target_spk, 'score')
+                self.auxl.zero_grad()
+                yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
                 max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
                 SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
                 #SaM = self.vari_sigmoid(yb,50)
@@ -231,9 +244,9 @@ class IRMTrainer():
                 tht_loss = torch.mean(torch.pow(th-1,2))
                 mse_loss = self.mse(mask, SaM)
                 enh_loss = torch.mean(self.vari_ReLU(yb,self.ratio,deivce)*torch.pow(relu(SaM-mask),2))
-                logits = self.model.module.speaker(Xb, target_spk, 'loss')
+                logits = self.auxl(Xb, target_spk, 'loss', mask)
                 preserve_score = self.cw_loss(logits, target_spk, device, True)
-                logits = self.model.module.speaker(Xb, target_spk, 'loss')
+                logits = self.auxl(Xb, target_spk, 'loss', mask)
                 remove_score = self.cw_loss(logits,target_spk,device, False)
                 running_mse_loss += mse_loss.item()
                 running_preserve_loss += preserve_score.item()
