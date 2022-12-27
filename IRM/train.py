@@ -120,7 +120,7 @@ if __name__ == "__main__":
         if local_rank == 0:
 
             if epoch%1==0:
-                state_dict = nnet.module.state_dict()
+                state_dict = nnet.state_dict()
                 torch.save(state_dict,f"{PROJECT_DIR}/models/model_{epoch}.pt")
             irm_trainer.set_models_to_eval_mode()
             irm_trainer.validation_epoch(epoch, configs["weight"], local_rank)
