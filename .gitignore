@@ -38,3 +38,4 @@ dmypy.json
 **/exp/**
 **/lst/**
 *.out
+*.pt
