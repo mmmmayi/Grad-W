@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 ## Set up project dir
-PROJECT_DIR = "exp/mse100_cw_preserve5_remove0.001_enh1e3_diff100_thf5_pos"
+PROJECT_DIR = "exp/mse_cw_preserve5_remove0.001_enh100"
 
 ## Config
 configs = {
@@ -23,7 +23,7 @@ configs = {
     "output_dim": 257,
     "num_layers": 3,        
     "num_epochs": 100,
-    "batchsize": 14,
+    "batchsize": 16,
     "data": 'noisy',
     "dur": 4,
     "weight": 1000,
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         batch_size=1,
         shuffle=None,
         sampler=train_sampler,
-        num_workers=24)
+        num_workers=16)
        
     #print('check dataset length:',len(train_irm_dataset))    
     # valid
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
         print('Number of trainable parameters: {}'.format(total_params))
     #optimizer = torch.optim.Adam(nnet.decoder.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.Adam(list(nnet_ddp.module.decoder.parameters())+list(nnet_ddp.module.embedding.parameters()))
+    optimizer = torch.optim.Adam(list(nnet_ddp.module.decoder.parameters()))
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
             #print(name, param.numel())

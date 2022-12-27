@@ -119,51 +119,39 @@ class IRMTrainer():
             Xb = Xb.reshape(B,W).cuda().to(device)
             clean = clean.reshape(B,W).cuda().to(device)
             target_spk = target_spk.reshape(B).to(device)
-            mask,th = self.model(Xb,clean)
-            if correct_spk.item() is False:
-                diff_loss = torch.mean(torch.pow(mask,2))
-                thf_loss = torch.mean(torch.pow(th,2))
-                train_loss = 5*thf_loss+100*diff_loss
-                running_diff += diff_loss.item()
-                running_thf += thf_loss.item()
-                diff_batch += 1
-            else:
-                score,feature = self.auxl(Xb, target_spk, 'score')
-                self.auxl.zero_grad()
-                yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-                max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-                SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
-                '''
-                for i in range(10):
-                    temp = yb_frame[0,i,:,:]
+            mask = self.model(clean)
+            score,feature = self.auxl(clean, target_spk, 'score')
+            self.auxl.zero_grad()
+            yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
+            SaM = self.vari_sigmoid(yb,50)
+            '''
+            for i in range(10):
+                temp = yb_frame[0,i,:,:]
 
-                    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
-                    img = librosa.display.specshow(temp.detach().cpu().squeeze().numpy(),x_axis=None)
-                    fig.colorbar(img, ax=ax)
+                fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
+                img = librosa.display.specshow(temp.detach().cpu().squeeze().numpy(),x_axis=None)
+                fig.colorbar(img, ax=ax)
 
                     #img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'.png')
-                    plt.close()
-                quit()
-                '''
+                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'.png')
+                plt.close()
+            quit()
+            '''
 
-                inverse_mask = 1-mask
-                mse_loss = self.mse(mask,SaM)
-                #mse_loss = torch.mean(torch.pow(mask,2))
-                tht_loss = torch.mean(torch.pow(th-1,2))
-                enh_loss = torch.mean(self.vari_ReLU(yb,self.ratio,device)*torch.pow(relu(SaM-mask),2))
-                logits = self.auxl(Xb, target_spk, 'loss', mask)
-                preserve_score =  self.cw_loss(logits, target_spk, device,True)
-                logits = self.auxl(Xb, target_spk, 'loss', mask)
-                remove_score = self.cw_loss(logits,target_spk,device,False)
-                train_loss = 100*mse_loss+5*preserve_score+1000*enh_loss+0.001*remove_score+tht_loss
-                #train_loss = mse_loss+tht_loss+enh_loss
-                running_mse += mse_loss.item()
-                #running_preserve += preserve_score.item()
-                #running_remove += remove_score.item()
-                #running_enh += enh_loss.item()
-                running_tht += tht_loss.item()
-                i_batch += 1
+            inverse_mask = 1-mask
+            mse_loss = self.mse(mask,SaM)
+                
+            enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(relu(SaM-mask),2))
+            logits = self.auxl(clean, target_spk, 'loss', mask)
+            preserve_score =  self.cw_loss(logits, target_spk, device,True)
+            logits = self.auxl(clean, target_spk, 'loss', mask)
+            remove_score = self.cw_loss(logits,target_spk,device,False)
+            train_loss = mse_loss+5*preserve_score+100*enh_loss+0.001*remove_score
+            running_mse += mse_loss.item()
+            running_preserve += preserve_score.item()
+            running_remove += remove_score.item()
+            running_enh += enh_loss.item()
+            i_batch += 1
 
             self.optimizer.zero_grad()
 
@@ -187,16 +175,10 @@ class IRMTrainer():
             ave_preserve_loss = running_preserve / i_batch
             ave_remove_loss = running_remove / i_batch
             ave_enh_loss = running_enh / i_batch
-            ave_diff_loss = running_diff / diff_batch
-            ave_thf_loss = running_thf / diff_batch
-            ave_tht_loss = running_tht / i_batch
             self.writer.add_scalar('Train/mse', ave_mse_loss, epoch)
             self.writer.add_scalar('Train/preserve', ave_preserve_loss, epoch)
             self.writer.add_scalar('Train/remove', ave_remove_loss, epoch)
             self.writer.add_scalar('Train/enh', ave_enh_loss, epoch)
-            self.writer.add_scalar('Train/diff', ave_diff_loss, epoch)
-            self.writer.add_scalar('Train/thf', ave_thf_loss, epoch)
-            self.writer.add_scalar('Train/tht', ave_tht_loss, epoch)
             self.logger.info("Epoch:{}".format(epoch)) 
             self.logger.info("*" * 50)
     
@@ -219,20 +201,11 @@ class IRMTrainer():
             clean = clean.reshape(B,W).cuda().to(device)
             target_spk = target_spk.squeeze().to(device)
            
-            mask,th = self.model(Xb, clean)
-            if correct_spk.item() is False:
-                thf_loss = torch.mean(torch.pow(th,2))
-                val_loss = torch.mean(torch.pow(mask,2))
-                running_diff_loss += val_loss.item()
-                running_thf_loss += thf_loss.item()
-                diff_batch += 1
-            else:
-                score,feature = self.auxl(Xb, target_spk, 'score')
-                self.auxl.zero_grad()
-                yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-                max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-                SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
-                #SaM = self.vari_sigmoid(yb,50)
+            mask = self.model(clean)
+            score,feature = self.auxl(clean, target_spk, 'score')
+            self.auxl.zero_grad()
+            yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
+            SaM = self.vari_sigmoid(yb,50)
                 #SaM_frame = self.vari_sigmoid(yb_frame,50)
             #frame_len = mel_c.shape[-1]
             #if frame_len%8>0:
@@ -240,37 +213,29 @@ class IRMTrainer():
                 #pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
                 #mel_c_ = pad(mel_c)
             
-                inverse_mask = 1-mask
-                tht_loss = torch.mean(torch.pow(th-1,2))
-                mse_loss = self.mse(mask, SaM)
-                enh_loss = torch.mean(self.vari_ReLU(yb,self.ratio,device)*torch.pow(relu(SaM-mask),2))
-                logits = self.auxl(Xb, target_spk, 'loss', mask)
-                preserve_score = self.cw_loss(logits, target_spk, device, True)
-                logits = self.auxl(Xb, target_spk, 'loss', mask)
-                remove_score = self.cw_loss(logits,target_spk,device, False)
-                running_mse_loss += mse_loss.item()
-                running_preserve_loss += preserve_score.item()
-                running_enh_loss += enh_loss.item()
-                running_tht_loss += tht_loss.item()
-                running_remove_loss += remove_score.item()
+            inverse_mask = 1-mask
+            mse_loss = self.mse(mask, SaM)
+            enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(relu(SaM-mask),2))
+            logits = self.auxl(clean, target_spk, 'loss', mask)
+            preserve_score = self.cw_loss(logits, target_spk, device, True)
+            logits = self.auxl(clean, target_spk, 'loss', mask)
+            remove_score = self.cw_loss(logits,target_spk,device, False)
+            running_mse_loss += mse_loss.item()
+            running_preserve_loss += preserve_score.item()
+            running_enh_loss += enh_loss.item()
+            running_remove_loss += remove_score.item()
             #running_remove_loss += remove_score.item()
-                i_batch += 1
+            i_batch += 1
         if device==0:    
             ave_mse_loss = running_mse_loss / i_batch
             ave_preserve_loss = running_preserve_loss / i_batch
             ave_remove_loss = running_remove_loss / i_batch
             ave_enh_loss = running_enh_loss / i_batch
-            ave_diff_loss = running_diff_loss / diff_batch
-            ave_thf_loss = running_thf_loss / diff_batch
-            ave_tht_loss = running_tht_loss / i_batch
             end_time = time.time()
             self.writer.add_scalar('Validation/mse', ave_mse_loss, epoch)
             self.writer.add_scalar('Validation/preserve', ave_preserve_loss, epoch)
             self.writer.add_scalar('Validation/remove', ave_remove_loss, epoch)
             self.writer.add_scalar('Validation/enh', ave_enh_loss, epoch)
-            self.writer.add_scalar('Validation/diff', ave_diff_loss, epoch)
-            self.writer.add_scalar('Validation/tht', ave_tht_loss, epoch)
-            self.writer.add_scalar('Validation/thf', ave_thf_loss, epoch)
             self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
             self.logger.info("Epoch:{}".format(epoch))
 

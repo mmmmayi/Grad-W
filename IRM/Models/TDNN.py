@@ -259,7 +259,7 @@ class Speaker_resnet(nn.Module):
         if mode=='feature':
             return frame
         elif mode == 'encoder':
-            return [out1,out2,out3,out4]
+            return [out1,out2,out3,out4,embed_a]
         elif mode == 'reference':
             return embed_a
         elif mode in ['score','loss']:
@@ -360,7 +360,7 @@ class decoder(nn.Module):
         saliency_chans = self.saliency_chans(upsample1)
         a = torch.abs(saliency_chans[:,0,:,:])
         b = torch.abs(saliency_chans[:,1,:,:])
-        return a/(a+b+1e-6), th
+        return a/(a+b+1e-6)
 
 class multi_TDNN(nn.Module):
     
@@ -368,25 +368,21 @@ class multi_TDNN(nn.Module):
         super(multi_TDNN, self).__init__()
         
         self.decoder = decoder()
-        self.embedding = Speaker_resnet(dur=dur) 
 
         self.speaker = Speaker_resnet(dur=dur)
         #for name in self.speaker.parameters():
             #print(name)
 
-        projection = ArcMarginProduct()
-        self.speaker.add_module("projection", projection)
         path = "exp/resnet_5994.pt"
         checkpoint = torch.load(path)
         self.speaker.load_state_dict(checkpoint, strict=False)
-        self.embedding.load_state_dict(checkpoint, strict=False)
 
         for p in self.speaker.parameters():
             #if 'projection' in name:
                 #print('param',param)
             p.requires_grad = False
         self.speaker.eval()
-    def forward(self,input,ref):
+    def forward(self,input):
         self.speaker.eval()
         #for name, param in self.speaker.parameters():
             #print(name)
@@ -394,7 +390,5 @@ class multi_TDNN(nn.Module):
             #print('input:{},speaker:{}'.format(input.device,i.device))
         
         encoder_out = self.speaker(input,mode='encoder')
-        embed = self.embedding(ref,mode='reference')
-        encoder_out.append(embed)
-        mask,th = self.decoder(encoder_out)
-        return mask,th
+        mask = self.decoder(encoder_out)
+        return mask

@@ -61,10 +61,7 @@ class IRMDataset(Dataset):
         clean_input, noise_input = [],[]
         noisy_input, target_spk = [],[]
         check = []
-        prob = np.random.uniform(0,1)
         correct_spk = True
-        if prob<0.3:
-            correct_spk = False
     
         for pairs in self.batch_data[idx]:
             check.append(pairs[0])
@@ -85,27 +82,10 @@ class IRMDataset(Dataset):
             target_category = torch.tensor(int(self.labels[spk]))
             
             if self.mode in ['train','validation']:
-                #noise = self.generate_noise(audio)
-                #snr = random.randint(0,20)
-                #input_tensor = self.mix_waveform(audio, noise, snr)
-                input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
-                
-                ref_spk = spk
-                if correct_spk is False:
-                    while ref_spk==spk:
-                        ref_spk = choice(self.all_spks)
-                idx = int(ref_spk[2:])
-                num = str(idx//200)
-                #clean_path = pairs[0]
-                #while clean_path == pairs[0]:
-                ref_wav = choice(self.spk_utt[ref_spk])
-                clean_path = os.path.join('/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/aac_split', num,ref_wav)
-                clean_audio, _  = soundfile.read(clean_path)
-                if len(clean_audio)<len(audio):
-                    pad_num = len(audio)-len(clean_audio)
-                    clean_audio = np.pad(clean_audio, (0, pad_num), 'wrap')
-                clean_tensor = torch.FloatTensor(np.stack([clean_audio],axis=0))
-                
+                noise = self.generate_noise(audio)
+                snr = random.randint(0,20)
+                input_tensor = self.mix_waveform(audio, noise, snr)
+                clean_tensor = torch.FloatTensor(np.stack([audio],axis=0)) 
             else: 
                 input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
                 clean_path = pairs[0].replace('IRM/mix','VoxCeleb_latest/VoxCeleb2/dev/aac_split')
