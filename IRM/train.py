@@ -80,19 +80,19 @@ if __name__ == "__main__":
     else:
         nnet = multi_TDNN(dur=configs["dur"])
     nnet.cuda()
-    nnet = nnet.to(f'cuda:{local_rank}')
-    nnet = torch.nn.parallel.DistributedDataParallel(nnet, find_unused_parameters=False)
+    nnet_ddp = nnet.to(f'cuda:{local_rank}')
+    nnet_ddp = torch.nn.parallel.DistributedDataParallel(nnet_ddp, find_unused_parameters=False)
     #nnet = torch.nn.parallel.DistributedDataParallel(nnet.cuda(local_rank), device_ids=[local_rank], output_device=local_rank)
     #print('Learnable parameters of the model:')
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
             #print(name, param.numel())
-    total_params = sum(p.numel() for p in nnet.parameters() if p.requires_grad)
+    total_params = sum(p.numel() for p in nnet_ddp.parameters() if p.requires_grad)
     if local_rank == 0:
 
         print('Number of trainable parameters: {}'.format(total_params))
     #optimizer = torch.optim.Adam(nnet.decoder.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.Adam(list(nnet.module.decoder.parameters())+list(nnet.module.embedding.parameters()))
+    optimizer = torch.optim.Adam(list(nnet_ddp.module.decoder.parameters())+list(nnet_ddp.module.embedding.parameters()))
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
             #print(name, param.numel())
@@ -109,8 +109,19 @@ if __name__ == "__main__":
     irm_trainer = IRMTrainer(
         config=configs,
         project_dir=PROJECT_DIR,
-        model=nnet, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,BCE_loss], dur = configs["dur"],
+        model=nnet_ddp, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,BCE_loss], dur = configs["dur"],
         train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"],        local_rank=local_rank)
     device = torch.device("cuda")
     #irm_trainer._get_global_mean_variance()
-    irm_trainer.train(configs["weight"], local_rank, resume_epoch=configs["resume_epoch"])
+    for epoch in range(1, configs["num_epochs"]+1):
+        dist.barrier()
+        irm_trainer.set_models_to_train_mode()
+        irm_trainer.train_epoch(epoch, configs["weight"], local_rank)
+        if local_rank == 0:
+
+            if epoch%1==0:
+                state_dict = nnet.module.state_dict()
+                torch.save(state_dict,f"{PROJECT_DIR}/models/model_{epoch}.pt")
+            irm_trainer.set_models_to_eval_mode()
+            irm_trainer.validation_epoch(epoch, configs["weight"], local_rank)
+    #irm_trainer.train(configs["weight"], local_rank, resume_epoch=configs["resume_epoch"])

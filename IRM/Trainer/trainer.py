@@ -70,7 +70,7 @@ class IRMTrainer():
         self.auxl.load_state_dict(checkpoint, strict=False)
         self.auxl.eval()
 
-    def __set_models_to_train_mode(self):
+    def set_models_to_train_mode(self):
         self.model.train()
 
     def vari_sigmoid(self,x,a):
@@ -106,7 +106,7 @@ class IRMTrainer():
         if isinstance(targeted, (bool, int)):
             return torch.mean(t) if targeted else torch.mean(nt)
 
-    def __train_epoch(self, epoch, weight, device):
+    def train_epoch(self, epoch, weight, device):
         relu = nn.ReLU()
         running_mse, running_preserve, running_remove, running_enh, running_diff, running_thf, running_tht = 0,0,0,0,0,0,0
         i_batch,diff_batch = 0,0
@@ -179,9 +179,9 @@ class IRMTrainer():
                 self.logger.info("Loss of minibatch {}-th/{}: {}, lr:{}".format(i_batch+diff_batch, len(self.train_dataloader), train_loss.item(), self.optimizer.param_groups[0]['lr']))
         #if epoch%10 ==0:
             #self.optimizer.param_groups[0]['lr'] = self.optimizer.param_groups[0]['lr']*0.8
-        if device==0:
-            if epoch%10 ==0:
-                torch.save(self.model, f"{self.PROJECT_DIR}/models/model_{epoch}.pt")
+        #if device==0:
+            #if epoch%10 ==0:
+                #torch.save(self.model, f"{self.PROJECT_DIR}/models/model_{epoch}.pt")
         if device ==0:
             ave_mse_loss = running_mse / i_batch
             ave_preserve_loss = running_preserve / i_batch
@@ -202,10 +202,10 @@ class IRMTrainer():
     
 
     
-    def __set_models_to_eval_mode(self):
+    def set_models_to_eval_mode(self):
         self.model.eval()
 
-    def __validation_epoch(self, epoch, weight, device):
+    def validation_epoch(self, epoch, weight, device):
         start_time = time.time()
         running_mse_loss, running_preserve_loss, running_remove_loss, running_enh_loss, running_diff_loss, running_tht_loss, running_thf_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         i_batch,diff_batch = 0,0
@@ -325,7 +325,7 @@ class IRMTrainer():
         for epoch in range(start_epoch+1, self.config["num_epochs"]+1):
             dist.barrier()
             self.__set_models_to_train_mode()
-            self.__train_epoch(epoch, weight, local_rank)
+            self.train_epoch(epoch, weight, local_rank)
             if local_rank == 0:
                 self.__set_models_to_eval_mode()
                 self.__validation_epoch(epoch, weight, local_rank)
