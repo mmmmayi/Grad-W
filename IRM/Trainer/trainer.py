@@ -123,7 +123,7 @@ class IRMTrainer():
             if correct_spk.item() is False:
                 diff_loss = torch.mean(torch.pow(mask,2))
                 thf_loss = torch.mean(torch.pow(th,2))
-                train_loss = thf_loss+diff_loss
+                train_loss = 5*thf_loss+100*diff_loss
                 running_diff += diff_loss.item()
                 running_thf += thf_loss.item()
                 diff_batch += 1
@@ -156,7 +156,7 @@ class IRMTrainer():
                 preserve_score =  self.cw_loss(logits, target_spk, device,True)
                 logits = self.auxl(Xb, target_spk, 'loss', mask)
                 remove_score = self.cw_loss(logits,target_spk,device,False)
-                train_loss = 10*mse_loss+preserve_score+weight*enh_loss+0.01*remove_score+tht_loss
+                train_loss = 100*mse_loss+5*preserve_score+1000*enh_loss+0.001*remove_score+tht_loss
                 #train_loss = mse_loss+tht_loss+enh_loss
                 running_mse += mse_loss.item()
                 #running_preserve += preserve_score.item()
@@ -243,7 +243,7 @@ class IRMTrainer():
                 inverse_mask = 1-mask
                 tht_loss = torch.mean(torch.pow(th-1,2))
                 mse_loss = self.mse(mask, SaM)
-                enh_loss = torch.mean(self.vari_ReLU(yb,self.ratio,deivce)*torch.pow(relu(SaM-mask),2))
+                enh_loss = torch.mean(self.vari_ReLU(yb,self.ratio,device)*torch.pow(relu(SaM-mask),2))
                 logits = self.auxl(Xb, target_spk, 'loss', mask)
                 preserve_score = self.cw_loss(logits, target_spk, device, True)
                 logits = self.auxl(Xb, target_spk, 'loss', mask)
@@ -255,24 +255,24 @@ class IRMTrainer():
                 running_remove_loss += remove_score.item()
             #running_remove_loss += remove_score.item()
                 i_batch += 1
-            
-        ave_mse_loss = running_mse_loss / i_batch
-        ave_preserve_loss = running_preserve_loss / i_batch
-        ave_remove_loss = running_remove_loss / i_batch
-        ave_enh_loss = running_enh_loss / i_batch
-        ave_diff_loss = running_diff_loss / diff_batch
-        ave_thf_loss = running_thf_loss / diff_batch
-        ave_tht_loss = running_tht_loss / i_batch
-        end_time = time.time()
-        self.writer.add_scalar('Validation/mse', ave_mse_loss, epoch)
-        self.writer.add_scalar('Validation/preserve', ave_preserve_loss, epoch)
-        self.writer.add_scalar('Validation/remove', ave_remove_loss, epoch)
-        self.writer.add_scalar('Validation/enh', ave_enh_loss, epoch)
-        self.writer.add_scalar('Validation/diff', ave_diff_loss, epoch)
-        self.writer.add_scalar('Validation/tht', ave_tht_loss, epoch)
-        self.writer.add_scalar('Validation/thf', ave_thf_loss, epoch)
-        self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
-        self.logger.info("Epoch:{}".format(epoch))
+        if device==0:    
+            ave_mse_loss = running_mse_loss / i_batch
+            ave_preserve_loss = running_preserve_loss / i_batch
+            ave_remove_loss = running_remove_loss / i_batch
+            ave_enh_loss = running_enh_loss / i_batch
+            ave_diff_loss = running_diff_loss / diff_batch
+            ave_thf_loss = running_thf_loss / diff_batch
+            ave_tht_loss = running_tht_loss / i_batch
+            end_time = time.time()
+            self.writer.add_scalar('Validation/mse', ave_mse_loss, epoch)
+            self.writer.add_scalar('Validation/preserve', ave_preserve_loss, epoch)
+            self.writer.add_scalar('Validation/remove', ave_remove_loss, epoch)
+            self.writer.add_scalar('Validation/enh', ave_enh_loss, epoch)
+            self.writer.add_scalar('Validation/diff', ave_diff_loss, epoch)
+            self.writer.add_scalar('Validation/tht', ave_tht_loss, epoch)
+            self.writer.add_scalar('Validation/thf', ave_thf_loss, epoch)
+            self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
+            self.logger.info("Epoch:{}".format(epoch))
 
     def _get_global_mean_variance(self):
         mean = 0.0

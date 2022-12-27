@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 ## Set up project dir
-PROJECT_DIR = "exp/temp"
+PROJECT_DIR = "exp/mse100_cw_preserve5_remove0.001_enh1e3_diff100_thf5_pos"
 
 ## Config
 configs = {
@@ -29,7 +29,7 @@ configs = {
     "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
-    "gpu":[0,1],
+    "gpu":[0,1,2],
     "optimizer": {
         "lr": 0.001,
         "beta1": 0.0,
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         batch_size=1,
         shuffle=None,
         sampler=train_sampler,
-        num_workers=16)
+        num_workers=24)
        
     #print('check dataset length:',len(train_irm_dataset))    
     # valid
@@ -110,11 +110,11 @@ if __name__ == "__main__":
         config=configs,
         project_dir=PROJECT_DIR,
         model=nnet_ddp, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,BCE_loss], dur = configs["dur"],
-        train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"],        local_rank=local_rank)
+        train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"],local_rank=local_rank)
     device = torch.device("cuda")
+    dist.barrier()
     #irm_trainer._get_global_mean_variance()
     for epoch in range(1, configs["num_epochs"]+1):
-        dist.barrier()
         irm_trainer.set_models_to_train_mode()
         irm_trainer.train_epoch(epoch, configs["weight"], local_rank)
         if local_rank == 0:
@@ -122,6 +122,6 @@ if __name__ == "__main__":
             if epoch%1==0:
                 state_dict = nnet.state_dict()
                 torch.save(state_dict,f"{PROJECT_DIR}/models/model_{epoch}.pt")
-            irm_trainer.set_models_to_eval_mode()
-            irm_trainer.validation_epoch(epoch, configs["weight"], local_rank)
+        irm_trainer.set_models_to_eval_mode()
+        irm_trainer.validation_epoch(epoch, configs["weight"], local_rank)
     #irm_trainer.train(configs["weight"], local_rank, resume_epoch=configs["resume_epoch"])
