@@ -3,8 +3,8 @@ from Models.dataset import IRMDataset
 from Trainer.applier import IRMApplier
 
 
-PROJECT_DIR = "exp/frameSelector_preserve_remove0.01_enh1e3_adv1e3_thmse/wav_10"
-MODEL_PATH = "exp/frameSelector_preserve_remove0.01_enh1e3_adv1e3_thmse/models/model_10.pt"
+PROJECT_DIR = "exp/mse_cw_preserve5_remove0.001_enh100/wav_20"
+MODEL_PATH = "exp/mse_cw_preserve5_remove0.001_enh100/models/model_20.pt"
 mode = 'quality'
 
 if __name__ == "__main__":
@@ -28,6 +28,6 @@ if __name__ == "__main__":
         model_path=MODEL_PATH,
         applier_dl=applier_loader,
         mode = mode)
-    irm_applier.restore()
+#    irm_applier.restore()
 #    irm_applier.quality_vox1()
-#    irm_applier.apply()
+    irm_applier.apply()
