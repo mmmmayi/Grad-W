@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # train
     train_irm_dataset = IRMDataset(
         path="../lst/utt_len",
-        path_sorted = "../lst/snr_sorted",
+        path_sorted = None,
         sub=0.1,
         spk="../lst/train_spk.lst",
         batch_size=configs["batchsize"], dur=configs["dur"],

@@ -140,27 +140,40 @@ def sort(path, path_sorted, spk_list,dur, sub):
         line = f.readline()
     total = len(utt_dict)
     num = int(sub*total)
-    f= open(path_sorted, 'r')
     utts_temp,utts = [],[]
     i = 0
     spk_utt = {}
-    for line in f.readlines()[8691:]:
-        i = i+1
-        item = line.strip('\n')
-        utt = item.split(' ')[0]
-        n_signal = utt_dict[utt]
-        spk = utt.split('/')[0]
-        if spk not in spk_list:
-            continue
-        if n_signal<dur*16000:
-            continue
-        utts_temp.append([utt,n_signal])
-        if spk in spk_utt:
-            spk_utt[spk].append(utt)
-        else:
-            spk_utt[spk] = [utt]
-        if i>num:
-            break
+   
+    if path_sorted is not None:
+        f= open(path_sorted, 'r')
+
+        for line in f.readlines()[8691:]:
+            i = i+1
+            item = line.strip('\n')
+            utt = item.split(' ')[0]
+            n_signal = utt_dict[utt]
+            spk = utt.split('/')[0]
+            if spk not in spk_list:
+                continue
+            if n_signal<dur*16000:
+                continue
+            utts_temp.append([utt,n_signal])
+            if i>num:
+                break
+    else:
+        spk_random = list(utt_dict.keys())        
+        random.shuffle(spk_random)
+        for spk_i in spk_random:
+            spk = spk_i.split('/')[0]
+            if spk not in spk_list:
+                continue
+            if utt_dict[spk_i]<dur*16000:
+                continue
+            utts_temp.append([spk_i, utt_dict[spk_i]])
+            i+=1
+            if i>num:
+                break
+
     sort_utts = sorted(utts_temp,key=lambda info:int(info[1]),reverse=False)
     for utt in sort_utts:
         utts.append(utt[0])

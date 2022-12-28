@@ -419,7 +419,10 @@ class IRMApplier():
             Xb = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             audio, _  = soundfile.read(os.path.join(clean_path, num,file))
             clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
-            score,feature = self.auxl(clean, target_spk, 'score')
+            mask,feature = self.model(clean)
+            feature = feature.requires_grad_()
+            score = self.auxl(feature, target_spk, 'score')
+            self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             yb = self.vari_sigmoid(yb,50)
             '''
@@ -428,7 +431,6 @@ class IRMApplier():
                 pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
                 mel_c = pad(mel_c)
             '''
-            mask = self.model(clean)
             
             #mask = mask[:,:,:frame_len]
 
