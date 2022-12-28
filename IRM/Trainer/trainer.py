@@ -119,22 +119,25 @@ class IRMTrainer():
             Xb = Xb.reshape(B,W).cuda().to(device)
             clean = clean.reshape(B,W).cuda().to(device)
             target_spk = target_spk.reshape(B).to(device)
-            mask = self.model(clean)
-            score,feature = self.auxl(clean, target_spk, 'score')
+            mask,feature = self.model(clean)
+            feature = feature.requires_grad_()
+            score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             SaM = self.vari_sigmoid(yb,50)
             '''
-            for i in range(10):
-                temp = yb_frame[0,i,:,:]
+            if device==0:
+                for i in range(10):
+                    temp = SaM[i,:,:]
 
-                fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
-                img = librosa.display.specshow(temp.detach().cpu().squeeze().numpy(),x_axis=None)
-                fig.colorbar(img, ax=ax)
+                    fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
+                    librosa.display.specshow(feature[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+                    img = librosa.display.specshow(temp.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+                    fig.colorbar(img, ax=ax)
 
                     #img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'.png')
-                plt.close()
+                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'.png')
+                    plt.close()
             quit()
             '''
 
@@ -201,8 +204,9 @@ class IRMTrainer():
             clean = clean.reshape(B,W).cuda().to(device)
             target_spk = target_spk.squeeze().to(device)
            
-            mask = self.model(clean)
-            score,feature = self.auxl(clean, target_spk, 'score')
+            mask, feature = self.model(clean)
+            feature = feature.requires_grad_()
+            score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             SaM = self.vari_sigmoid(yb,50)

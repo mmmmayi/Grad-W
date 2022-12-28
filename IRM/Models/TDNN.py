@@ -218,19 +218,20 @@ class Speaker_resnet(nn.Module):
         return start_point, end_point
 
     def forward(self, x, targets=None, mode='feature', mask=None):
-        with torch.no_grad():
-            x = self.pre(x)
-            x = self.Spec(x)
-            frame_len = x.shape[-1]
-            start, end = self._clip_point(frame_len)
-            x = x[:,:,start:end]
-            x = (self.Mel_scale(x)+1e-6).log()
-            if mask is not None:
-                x = x+(mask+1).log()
+        if mode != 'score':
+            with torch.no_grad():
+                x = self.pre(x)
+                x = self.Spec(x)
+                frame_len = x.shape[-1]
+                start, end = self._clip_point(frame_len)
+                x = x[:,:,start:end]
+                x = (self.Mel_scale(x)+1e-6).log()
+                if mask is not None:
+                    x = x+(mask+1).log()
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
-        feature = x.requires_grad_()
+        feature = x
         x = feature - torch.mean(feature, dim=-1, keepdim=True)
         #x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
         x = x.unsqueeze_(1)
@@ -259,14 +260,14 @@ class Speaker_resnet(nn.Module):
         if mode=='feature':
             return frame
         elif mode == 'encoder':
-            return [out1,out2,out3,out4,embed_a]
+            return [out1,out2,out3,out4,embed_a],feature
         elif mode == 'reference':
             return embed_a
         elif mode in ['score','loss']:
             score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
             if mode == 'score':
-                return result, feature
+                return result
             else:
                 return score
 
@@ -389,6 +390,6 @@ class multi_TDNN(nn.Module):
         #print(next(self.speaker.parameters()).device)
             #print('input:{},speaker:{}'.format(input.device,i.device))
         
-        encoder_out = self.speaker(input,mode='encoder')
+        encoder_out,feature = self.speaker(input,mode='encoder')
         mask = self.decoder(encoder_out)
-        return mask
+        return mask,feature
