@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 ## Set up project dir
-PROJECT_DIR = "exp/mse_cw_preserve5_remove0.001_enh100"
+PROJECT_DIR = "exp/mse_cw_preserve_remove0.001_enh100_ddp"
 
 ## Config
 configs = {
@@ -31,7 +31,7 @@ configs = {
     "ratio":0.1,
     "gpu":[0,1,2],
     "optimizer": {
-        "lr": 0.001,
+        "lr": 0.005,
         "beta1": 0.0,
         "beta2": 0.9}}
 
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
         print('Number of trainable parameters: {}'.format(total_params))
     #optimizer = torch.optim.Adam(nnet.decoder.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.Adam(list(nnet_ddp.module.decoder.parameters()))
+    optimizer = torch.optim.Adam(list(nnet_ddp.module.decoder.parameters()),lr=configs["optimizer"]["lr"])
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
             #print(name, param.numel())
