@@ -31,7 +31,7 @@ configs = {
     "ratio":0.1,
     "gpu":[0,1,2],
     "optimizer": {
-        "lr": 0.005,
+        "lr": 0.001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
