@@ -218,7 +218,7 @@ class Speaker_resnet(nn.Module):
         return start_point, end_point
 
     def forward(self, x, targets=None, mode='feature', mask=None):
-        if mode != 'score':
+        if mode not in ['score','loss']:
             with torch.no_grad():
                 x = self.pre(x)
                 x = self.Spec(x)

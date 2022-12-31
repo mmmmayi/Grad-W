@@ -145,9 +145,9 @@ class IRMTrainer():
             mse_loss = self.mse(mask,SaM)
                 
             enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(relu(SaM-mask),2))
-            logits = self.auxl(clean, target_spk, 'loss', mask)
+            logits = self.auxl(feature, target_spk, 'loss', mask)
             preserve_score =  self.cw_loss(logits, target_spk, device,True)
-            logits = self.auxl(clean, target_spk, 'loss', inverse_mask)
+            logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
             remove_score = self.cw_loss(logits,target_spk,device,False)
             train_loss = mse_loss+preserve_score+100*enh_loss+0.001*remove_score
             running_mse += mse_loss.item()
@@ -220,9 +220,9 @@ class IRMTrainer():
             inverse_mask = 1-mask
             mse_loss = self.mse(mask, SaM)
             enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(relu(mask-SaM),2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(relu(SaM-mask),2))
-            logits = self.auxl(clean, target_spk, 'loss', mask)
+            logits = self.auxl(feature, target_spk, 'loss', mask)
             preserve_score = self.cw_loss(logits, target_spk, device, True)
-            logits = self.auxl(clean, target_spk, 'loss', inverse_mask)
+            logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
             remove_score = self.cw_loss(logits,target_spk,device, False)
             running_mse_loss += mse_loss.item()
             running_preserve_loss += preserve_score.item()
