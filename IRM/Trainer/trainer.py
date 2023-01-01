@@ -120,7 +120,7 @@ class IRMTrainer():
             clean = clean.reshape(B,W).cuda().to(device)
             target_spk = target_spk.reshape(B).to(device)
             mask,feature = self.model(clean)
-            feature = feature.requires_grad_()
+            feature = feature.detach().requires_grad_()
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]

@@ -264,7 +264,7 @@ class Speaker_resnet(nn.Module):
         elif mode == 'reference':
             return embed_a
         elif mode in ['score','loss']:
-            score = self.projection(embed_a, targets, mode)
+            score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
             if mode == 'score':
                 return result
