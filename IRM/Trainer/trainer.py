@@ -128,7 +128,7 @@ class IRMTrainer():
             '''
             if device==0:
                 for i in range(10):
-                    temp = SaM[i,:,:]
+                    temp = yb[i,:,:]
 
                     fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
                     librosa.display.specshow(feature[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
