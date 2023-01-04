@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o mse_cw_preserve_remove0.01_enh_ddp_cos.out
+#SBATCH -o mse_cw_preserve10_remove0.01_enh_ddp_cos.out
 #SBATCH --gres=gpu:3
 #SBATCH -w ttnusa7
 #SBATCH --cpus-per-task=16
