@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 ## Set up project dir
-PROJECT_DIR = "exp/mse_cw_preserve10_remove0.01_enh_ddp_cos"
+PROJECT_DIR = "exp/mse_cw_preserve5_remove0.01_enh_ddp_cos"
 
 ## Config
 configs = {
