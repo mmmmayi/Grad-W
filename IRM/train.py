@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 ## Set up project dir
-PROJECT_DIR = "exp/mse_enh_ddp_cos"
+PROJECT_DIR = "exp/mse_enh10_ddp_cos"
 
 ## Config
 configs = {
@@ -29,7 +29,7 @@ configs = {
     "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
-    "gpu":[0,1],
+    "gpu":[0],
     "optimizer": {
         "lr": 0.001,
         "beta1": 0.0,
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         dataset=valid_irm_dataset,
         batch_size=1,
         shuffle=None,
-        num_workers=8)
+        num_workers=16)
     ## Model, loss_fn, opt
     if configs['resume_epoch'] is not None:
         nnet = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
