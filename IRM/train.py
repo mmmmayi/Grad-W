@@ -14,7 +14,7 @@ from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 ## Set up project dir
-PROJECT_DIR = "exp/mse_enh10_ddp_cos"
+PROJECT_DIR = "exp/mse_enh_ddp_cos_lr0.01"
 
 ## Config
 configs = {
@@ -29,9 +29,9 @@ configs = {
     "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
-    "gpu":[0],
+    "gpu":[0,1],
     "optimizer": {
-        "lr": 0.001,
+        "lr": 0.01,
         "beta1": 0.0,
         "beta2": 0.9}}
 
