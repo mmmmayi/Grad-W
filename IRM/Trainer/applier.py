@@ -436,12 +436,18 @@ class IRMApplier():
 
             if not os.path.exists(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2])):
                 os.makedirs(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2]))
+            mask_ = np.sort(mask.detach().cpu().squeeze().numpy(),axis=None).squeeze()
+            x = np.arange(len(mask_))
+            plt.scatter(x,mask_)
+            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sort.png')))
+            plt.close()
+
             fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
             #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
 
             librosa.display.specshow(feature.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
-            img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=0.4,vmax=0.6)
+            img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
             librosa.display.specshow(yb.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
             fig.colorbar(img, ax=ax)
             #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
