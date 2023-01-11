@@ -441,7 +441,7 @@ class IRMApplier():
 
             librosa.display.specshow(feature.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
-            img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+            img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=0.4,vmax=0.6)
             librosa.display.specshow(yb.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
             fig.colorbar(img, ax=ax)
             #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
