@@ -89,7 +89,6 @@ class ExponentialDecrease(BaseClass):
         current_lr = lr_coeff * self.initial_lr * math.exp(
             (self.current_iter / self.max_iter) *
             math.log(self.final_lr / self.initial_lr))
-        print('current_lr',current_lr)
         return current_lr
 
 def show_lr_curve(scheduler):
@@ -112,13 +111,14 @@ if __name__ == '__main__':
     optimizer = None
     num_epochs = 100
     epoch_iter = 1706
-    initial_lr = 0.6
-    final_lr = 0.1
+    initial_lr = 0.1
+    final_lr = 0.001
     warm_up_epoch = 5
     scale_ratio = 1
+    warm_from_zero=True
     scheduler = ExponentialDecrease(optimizer, num_epochs, epoch_iter,
                                     initial_lr, final_lr, warm_up_epoch,
-                                    scale_ratio)
+                                    scale_ratio, warm_from_zero)
 
     show_lr_curve(scheduler)
  

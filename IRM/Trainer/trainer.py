@@ -114,8 +114,6 @@ class IRMTrainer():
         for sample_batched in self.train_dataloader:
             cur_iter = (epoch - 1) * loader_size + i_batch
             scheduler.step(cur_iter)
-            print(self.optimizer.param_groups[0]['lr'])
-            quit()
             # Load data from trainloader
             Xb, target_spk, clean, correct_spk  = sample_batched
             #print(Xb.device)

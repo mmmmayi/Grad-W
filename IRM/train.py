@@ -33,7 +33,7 @@ configs = {
     "gpu":[0],
     "optimizer": {
         "initial_lr": 0.1,
-        "final_lr":0.1,
+        "final_lr":0.001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
