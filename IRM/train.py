@@ -13,8 +13,9 @@ from Models.models import BLSTM
 from Models.TDNN import multi_TDNN
 from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
+from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_ddp_output"
+PROJECT_DIR = "exp/mse_ddp_output_sgd_optimizer"
 
 ## Config
 configs = {
@@ -22,16 +23,17 @@ configs = {
     "hidden_units": 128,
     "output_dim": 257,
     "num_layers": 3,        
-    "num_epochs": 100,
-    "batchsize": 16,
+    "num_epochs": 50,
+    "batchsize": 64,
     "data": 'noisy',
     "dur": 4,
     "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
-    "gpu":[0,1],
+    "gpu":[0],
     "optimizer": {
-        "lr": 0.001,
+        "initial_lr": 0.1,
+        "final_lr":0.1,
         "beta1": 0.0,
         "beta2": 0.9}}
 
@@ -60,7 +62,7 @@ if __name__ == "__main__":
         sampler=train_sampler,
         num_workers=16)
        
-    #print('check dataset length:',len(train_irm_dataset))    
+    print('check dataset length:',len(train_irm_dataset))    
     # valid
     valid_irm_dataset = IRMDataset(
         path="../lst/utt_len",
@@ -74,6 +76,8 @@ if __name__ == "__main__":
         batch_size=1,
         shuffle=None,
         num_workers=16)
+    world_size = int(os.environ['WORLD_SIZE'])
+    print('world_size:',world_size)
     ## Model, loss_fn, opt
     if configs['resume_epoch'] is not None:
         nnet = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
@@ -92,7 +96,17 @@ if __name__ == "__main__":
 
         print('Number of trainable parameters: {}'.format(total_params))
     #optimizer = torch.optim.Adam(nnet.decoder.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.Adam(list(nnet_ddp.module.decoder.parameters()),lr=configs["optimizer"]["lr"])
+    optimizer = torch.optim.SGD(list(nnet_ddp.module.decoder.parameters()),lr=configs["optimizer"]["initial_lr"])
+    loader_size = len(train_irm_dataset)//world_size
+    print(loader_size)
+    scheduler = ExponentialDecrease(optimizer,
+        num_epochs=configs["num_epochs"],
+        epoch_iter=loader_size,
+        initial_lr=configs["optimizer"]["initial_lr"],
+        final_lr=configs["optimizer"]["final_lr"],
+        warm_up_epoch=5,
+        scale_ratio= 1*world_size*configs["batchsize"]/64, 
+        warm_from_zero=True)
     #for name, param in nnet.named_parameters():
         #if param.requires_grad:
             #print(name, param.numel())
@@ -116,7 +130,7 @@ if __name__ == "__main__":
     #irm_trainer._get_global_mean_variance()
     for epoch in range(1, configs["num_epochs"]+1):
         irm_trainer.set_models_to_train_mode()
-        irm_trainer.train_epoch(epoch, configs["weight"], local_rank)
+        irm_trainer.train_epoch(epoch, configs["weight"], local_rank, loader_size, scheduler)
         if local_rank == 0:
 
             if epoch%10==0:

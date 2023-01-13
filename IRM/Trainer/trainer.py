@@ -106,12 +106,16 @@ class IRMTrainer():
         if isinstance(targeted, (bool, int)):
             return torch.mean(t) if targeted else torch.mean(nt)
 
-    def train_epoch(self, epoch, weight, device):
+    def train_epoch(self, epoch, weight, device, loader_size, scheduler):
         relu = nn.ReLU()
         running_mse, running_preserve, running_remove, running_enh, running_diff, running_thf, running_tht = 0,0,0,0,0,0,0
         i_batch,diff_batch = 0,0
         self.train_dataloader.dataset.shuffle(epoch)
         for sample_batched in self.train_dataloader:
+            cur_iter = (epoch - 1) * loader_size + i_batch
+            scheduler.step(cur_iter)
+            print(self.optimizer.param_groups[0]['lr'])
+            quit()
             # Load data from trainloader
             Xb, target_spk, clean, correct_spk  = sample_batched
             #print(Xb.device)
