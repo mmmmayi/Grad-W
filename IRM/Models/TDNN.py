@@ -351,9 +351,9 @@ class decoder(nn.Module):
     def forward(self,encoder_out):
         em = encoder_out[-1]
         scale4 = encoder_out[-2]
-        act = torch.sum(scale4*em.view(-1, 256, 1, 1), 1, keepdim=True)
-        th = torch.sigmoid(act)
-        scale4 = scale4*th
+        #act = torch.sum(scale4*em.view(-1, 256, 1, 1), 1, keepdim=True)
+        #th = torch.sigmoid(act)
+        #scale4 = scale4*th
 
         upsample3 = self.uplayer4(scale4, encoder_out[-3])
         upsample2 = self.uplayer3(upsample3, encoder_out[-4])
