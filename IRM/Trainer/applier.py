@@ -438,7 +438,9 @@ class IRMApplier():
                 os.makedirs(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2]))
             mask_ = np.sort(mask.detach().cpu().squeeze().numpy(),axis=None).squeeze()
             x = np.arange(len(mask_))
-            plt.scatter(x,mask_)
+            plt.plot(x, mask_, color='blue', label='predict')
+            plt.plot(x, np.sort(yb.detach().cpu().squeeze().numpy(),axis=None).squeeze(), color='yellow', label='target')
+            plt.legend()
             plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sort.png')))
             plt.close()
 

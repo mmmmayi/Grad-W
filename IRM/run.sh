@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o mse_ddp_output_sgd_v2.out
+#SBATCH -o mse_ddp_output_sgd_v2_lr0.0005.out
 #SBATCH --gres=gpu:1
 #SBATCH -w ttnusa11
 #SBATCH --cpus-per-task=16
