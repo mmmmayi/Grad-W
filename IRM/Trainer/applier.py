@@ -424,7 +424,7 @@ class IRMApplier():
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            yb = self.vari_sigmoid(yb,50)
+            yb = self.vari_sigmoid(yb,1)
             '''
             if frame_len%8>0:
                 pad_num = math.ceil(frame_len/8)*8-frame_len
