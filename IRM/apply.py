@@ -3,8 +3,8 @@ from Models.dataset import IRMDataset
 from Trainer.applier import IRMApplier
 
 
-PROJECT_DIR = "exp/mse_ddp_output_sgd_v2_sig1_lr0.01/wav_50"
-MODEL_PATH = "exp/mse_ddp_output_sgd_v2_sig1_lr0.01/models/model_50.pt"
+PROJECT_DIR = "exp/mse_ddp_output_sgd_v2_lr0.0008/wav_20"
+MODEL_PATH = "exp/mse_ddp_output_sgd_v2_lr0.0008/models/model_20.pt"
 mode = 'quality'
 
 if __name__ == "__main__":
