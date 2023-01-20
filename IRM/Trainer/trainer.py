@@ -157,7 +157,7 @@ class IRMTrainer():
             #continue
             logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
             remove_score = self.cw_loss(logits,target_spk,device,False)
-            train_loss = mse_loss+0.01*preserve_score+0.05*remove_score
+            train_loss = mse_loss+0.01*preserve_score+0.03*remove_score
             running_mse += mse_loss.item()
             running_preserve += preserve_score.item()
             running_remove += remove_score.item()
