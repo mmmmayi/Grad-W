@@ -150,19 +150,19 @@ class IRMTrainer():
             quit()
             '''
 
-            inverse_mask = 1-mask
+            #inverse_mask = 1-mask
             mse_loss = self.mse(mask,SaM)
                 
             #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
-            logits = self.auxl(feature, target_spk, 'loss', mask)
-            preserve_score =  self.cw_loss(logits, target_spk, device,True)
+            #logits = self.auxl(feature, target_spk, 'loss', mask)
+            #preserve_score =  self.cw_loss(logits, target_spk, device,True)
             #continue
-            logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
-            remove_score = self.cw_loss(logits,target_spk,device,False)
-            train_loss = mse_loss+0.01*preserve_score+0.03*remove_score
+            #logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
+            #remove_score = self.cw_loss(logits,target_spk,device,False)
+            train_loss = mse_loss
             running_mse += mse_loss.item()
-            running_preserve += preserve_score.item()
-            running_remove += remove_score.item()
+            #running_preserve += preserve_score.item()
+            #running_remove += remove_score.item()
             #running_enh += enh_loss.item()
             i_batch += 1
 
@@ -185,12 +185,12 @@ class IRMTrainer():
                 #torch.save(self.model, f"{self.PROJECT_DIR}/models/model_{epoch}.pt")
         if device ==0:
             ave_mse_loss = running_mse / i_batch
-            ave_preserve_loss = running_preserve / i_batch
-            ave_remove_loss = running_remove / i_batch
+            #ave_preserve_loss = running_preserve / i_batch
+            #ave_remove_loss = running_remove / i_batch
             #ave_enh_loss = running_enh / i_batch
             self.writer.add_scalar('Train/mse', ave_mse_loss, epoch)
-            self.writer.add_scalar('Train/preserve', ave_preserve_loss, epoch)
-            self.writer.add_scalar('Train/remove', ave_remove_loss, epoch)
+            #self.writer.add_scalar('Train/preserve', ave_preserve_loss, epoch)
+            #self.writer.add_scalar('Train/remove', ave_remove_loss, epoch)
             #self.writer.add_scalar('Train/enh', ave_enh_loss, epoch)
             self.logger.info("Epoch:{}".format(epoch)) 
             self.logger.info("*" * 50)

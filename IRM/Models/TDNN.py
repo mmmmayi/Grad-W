@@ -344,7 +344,7 @@ class decoder(nn.Module):
         self.uplayer4 = UpSampleBlock(in_channels=256,out_channels=128,passthrough_channels=128)
         self.uplayer3 = UpSampleBlock(in_channels=128,out_channels=64,passthrough_channels=64)
         self.uplayer2 = UpSampleBlock(in_channels=64,out_channels=32,passthrough_channels=32)
-        self.saliency_chans = nn.Conv2d(32,2,kernel_size=1,bias=False)
+        self.saliency_chans = nn.Conv2d(32,1,kernel_size=1,bias=False)
     def vari_sigmoid(self,x,a):
         return 1/(1+(-a*x).exp())
 
@@ -359,9 +359,10 @@ class decoder(nn.Module):
         upsample2 = self.uplayer3(upsample3, encoder_out[-4])
         upsample1 = self.uplayer2(upsample2, encoder_out[-5])
         saliency_chans = self.saliency_chans(upsample1)
-        a = torch.abs(saliency_chans[:,0,:,:])
-        b = torch.abs(saliency_chans[:,1,:,:])
-        return a/(a+b+1e-6)
+        #a = torch.abs(saliency_chans[:,0,:,:])
+        #b = torch.abs(saliency_chans[:,1,:,:])
+        #return a/(a+b+1e-6)
+        return saliency_chans
 
 class multi_TDNN(nn.Module):
     
