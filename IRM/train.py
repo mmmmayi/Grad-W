@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_pos_v2_lr0.001_s8"
+PROJECT_DIR = "exp/mse_pos_v2_lr0.001_w0.95"
 
 ## Config
 configs = {
@@ -23,7 +23,7 @@ configs = {
     "hidden_units": 128,
     "output_dim": 257,
     "num_layers": 3,      
-    "scale":8,  
+    "scale":2,  
     "num_epochs": 50,
     "batchsize": 16,
     "data": 'noisy',
@@ -118,7 +118,8 @@ if __name__ == "__main__":
     BCE_loss = nn.BCELoss()
     MSE_loss = nn.MSELoss()
     COS_loss = nn.CosineEmbeddingLoss()
-    CE_loss = nn.CrossEntropyLoss()
+    weight = torch.FloatTensor([0.05,0.95]).cuda().to(local_rank)
+    CE_loss = nn.CrossEntropyLoss(weight=weight)
     #loss_fn = nn.L1Loss(reduction='sum')
     #scheduler = MultiStepLR(optimizer=optimizer, milestones=[4, 8, 12, 16], gamma=0.5)
 

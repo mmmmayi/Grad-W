@@ -94,7 +94,7 @@ class IRMTrainer():
             if f is not None:
                 yield from self.get_contributing_params(f, top_level=False)
 
-    def cw_loss(self,logits, target_spk, device, targeted=True, t_conf=15, nt_conf=2):
+    def cw_loss(self,logits, target_spk, device, targeted=True, t_conf=15, nt_conf=0.5):
         depth = logits.shape[-1]
         one_hot_labels = torch.zeros(target_spk.size(0), depth).cuda().to(device)
         
@@ -130,19 +130,19 @@ class IRMTrainer():
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
+            SaM = torch.where(yb>0.05*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
             SaM =SaM.long()
             #SaM = self.vari_sigmoid(yb,50)
             '''
             if device==0:
                 for i in range(10):
-                    temp = self.vari_ReLU(0-yb,self.ratio,device)
-                    temp2 = self.vari_ReLU(yb,self.ratio,device) 
-                    fig, ax = plt.subplots(nrows=4, ncols=1, sharex=True)
+                    temp = 0-SaM
+                    #temp2 = self.vari_ReLU(yb,self.ratio,device) 
+                    fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
                     librosa.display.specshow(feature[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
-                    librosa.display.specshow(yb[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+                    librosa.display.specshow(SaM[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
                     img = librosa.display.specshow(temp[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    librosa.display.specshow(temp2[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[3])
+                    #librosa.display.specshow(temp2[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[3])
                     fig.colorbar(img, ax=ax)
 
                     #img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
@@ -155,7 +155,7 @@ class IRMTrainer():
             mse_loss = self.bce(logits,SaM)
                 
             #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
-            #logits = self.auxl(feature, target_spk, 'loss', mask)
+            #logits = self.auxl(feature, target_spk, 'loss', (0-SaM).float())
             #preserve_score =  self.cw_loss(logits, target_spk, device,True)
             #continue
             #logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
