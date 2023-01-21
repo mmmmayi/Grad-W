@@ -124,13 +124,14 @@ class IRMTrainer():
             Xb = Xb.reshape(B,W).cuda().to(device)
             clean = clean.reshape(B,W).cuda().to(device)
             target_spk = target_spk.reshape(B).to(device)
-            mask,feature = self.model(clean)
+            mask,logits, feature = self.model(clean)
             feature = feature.detach().requires_grad_()
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
             SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
+            SaM =SaM.long()
             #SaM = self.vari_sigmoid(yb,50)
             '''
             if device==0:
@@ -151,7 +152,7 @@ class IRMTrainer():
             '''
 
             #inverse_mask = 1-mask
-            mse_loss = self.mse(mask,SaM)
+            mse_loss = self.bce(logits,SaM)
                 
             #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
             #logits = self.auxl(feature, target_spk, 'loss', mask)
@@ -214,12 +215,15 @@ class IRMTrainer():
             clean = clean.reshape(B,W).cuda().to(device)
             target_spk = target_spk.squeeze().to(device)
            
-            mask, feature = self.model(clean)
+            mask, logits, feature = self.model(clean)
             feature = feature.requires_grad_()
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            SaM = self.vari_sigmoid(yb,50)
+            max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+            SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
+            SaM =SaM.long()
+
                 #SaM_frame = self.vari_sigmoid(yb_frame,50)
             #frame_len = mel_c.shape[-1]
             #if frame_len%8>0:
@@ -227,28 +231,28 @@ class IRMTrainer():
                 #pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
                 #mel_c_ = pad(mel_c)
             
-            inverse_mask = 1-mask
-            mse_loss = self.mse(mask, SaM)
+            #inverse_mask = 1-mask
+            mse_loss = self.bce(logits, SaM)
             #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
-            logits = self.auxl(feature, target_spk, 'loss', mask)
-            preserve_score = self.cw_loss(logits, target_spk, device, True)
-            logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
-            remove_score = self.cw_loss(logits,target_spk,device, False)
+            #logits = self.auxl(feature, target_spk, 'loss', mask)
+            #preserve_score = self.cw_loss(logits, target_spk, device, True)
+            #logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
+            #remove_score = self.cw_loss(logits,target_spk,device, False)
             running_mse_loss += mse_loss.item()
-            running_preserve_loss += preserve_score.item()
+            #running_preserve_loss += preserve_score.item()
             #running_enh_loss += enh_loss.item()
-            running_remove_loss += remove_score.item()
+            #running_remove_loss += remove_score.item()
             #running_remove_loss += remove_score.item()
             i_batch += 1
         if device==0:    
             ave_mse_loss = running_mse_loss / i_batch
-            ave_preserve_loss = running_preserve_loss / i_batch
-            ave_remove_loss = running_remove_loss / i_batch
+            #ave_preserve_loss = running_preserve_loss / i_batch
+            #ave_remove_loss = running_remove_loss / i_batch
             #ave_enh_loss = running_enh_loss / i_batch
             end_time = time.time()
             self.writer.add_scalar('Validation/mse', ave_mse_loss, epoch)
-            self.writer.add_scalar('Validation/preserve', ave_preserve_loss, epoch)
-            self.writer.add_scalar('Validation/remove', ave_remove_loss, epoch)
+            #self.writer.add_scalar('Validation/preserve', ave_preserve_loss, epoch)
+            #self.writer.add_scalar('Validation/remove', ave_remove_loss, epoch)
             #self.writer.add_scalar('Validation/enh', ave_enh_loss, epoch)
             self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
             self.logger.info("Epoch:{}".format(epoch))

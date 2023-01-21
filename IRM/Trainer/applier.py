@@ -419,12 +419,15 @@ class IRMApplier():
             Xb = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             audio, _  = soundfile.read(os.path.join(clean_path, num,file))
             clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
-            mask,feature = self.model(clean)
+            mask,logits,feature = self.model(clean)
             feature = feature.requires_grad_()
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            yb = self.vari_sigmoid(yb,50)
+            max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+            SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
+            SaM =SaM.long()
+
             '''
             if frame_len%8>0:
                 pad_num = math.ceil(frame_len/8)*8-frame_len
@@ -439,7 +442,7 @@ class IRMApplier():
             mask_ = np.sort(mask.detach().cpu().squeeze().numpy(),axis=None).squeeze()
             x = np.arange(len(mask_))
             plt.plot(x, mask_, color='blue', label='predict')
-            plt.plot(x, np.sort(yb.detach().cpu().squeeze().numpy(),axis=None).squeeze(), color='yellow', label='target')
+            plt.plot(x, np.sort(SaM.detach().cpu().squeeze().numpy(),axis=None).squeeze(), color='yellow', label='target')
             plt.legend()
             plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sort.png')))
             plt.close()
@@ -450,7 +453,7 @@ class IRMApplier():
             librosa.display.specshow(feature.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
             img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-            librosa.display.specshow(yb.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+            librosa.display.specshow(SaM.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
             fig.colorbar(img, ax=ax)
             #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
 

@@ -15,14 +15,15 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_pre0.01_remove0.02_v2_lr0.0005"
+PROJECT_DIR = "exp/mse_pos_v2_lr0.001_s8"
 
 ## Config
 configs = {
     "input_dim": 1793,
     "hidden_units": 128,
     "output_dim": 257,
-    "num_layers": 3,        
+    "num_layers": 3,      
+    "scale":8,  
     "num_epochs": 50,
     "batchsize": 16,
     "data": 'noisy',
@@ -32,8 +33,8 @@ configs = {
     "ratio":0.1,
     "gpu":[0,1],
     "optimizer": {
-        "initial_lr": 0.0005,
-        "final_lr":0.0000005,
+        "initial_lr": 0.0001,
+        "final_lr":0.0000001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
@@ -80,9 +81,11 @@ if __name__ == "__main__":
     print('world_size:',world_size)
     ## Model, loss_fn, opt
     if configs['resume_epoch'] is not None:
-        nnet = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
-    else:
         nnet = multi_TDNN(dur=configs["dur"])
+        checkpoint = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
+        nnet.load_state_dict(checkpoint)
+    else:
+        nnet = multi_TDNN(dur=configs["dur"], scale=configs["scale"])
     nnet.cuda()
     nnet_ddp = nnet.to(f'cuda:{local_rank}')
     nnet_ddp = torch.nn.parallel.DistributedDataParallel(nnet_ddp, find_unused_parameters=False)
@@ -123,7 +126,7 @@ if __name__ == "__main__":
     irm_trainer = IRMTrainer(
         config=configs,
         project_dir=PROJECT_DIR,
-        model=nnet_ddp, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,BCE_loss], dur = configs["dur"],
+        model=nnet_ddp, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,CE_loss], dur = configs["dur"],
         train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"],local_rank=local_rank)
     device = torch.device("cuda")
     dist.barrier()

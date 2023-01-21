@@ -339,12 +339,14 @@ class Block(nn.Module):
 
 
 class decoder(nn.Module):
-    def __init__(self):
+    def __init__(self,scale):
         super(decoder, self).__init__()
         self.uplayer4 = UpSampleBlock(in_channels=256,out_channels=128,passthrough_channels=128)
         self.uplayer3 = UpSampleBlock(in_channels=128,out_channels=64,passthrough_channels=64)
         self.uplayer2 = UpSampleBlock(in_channels=64,out_channels=32,passthrough_channels=32)
         self.saliency_chans = nn.Conv2d(32,1,kernel_size=1,bias=False)
+        self.sig = nn.Sigmoid()
+        self.scale = scale
     def vari_sigmoid(self,x,a):
         return 1/(1+(-a*x).exp())
 
@@ -359,17 +361,18 @@ class decoder(nn.Module):
         upsample2 = self.uplayer3(upsample3, encoder_out[-4])
         upsample1 = self.uplayer2(upsample2, encoder_out[-5])
         saliency_chans = self.saliency_chans(upsample1)
+        logits = torch.cat((-saliency_chans/self.scale, saliency_chans/self.scale),1)
         #a = torch.abs(saliency_chans[:,0,:,:])
         #b = torch.abs(saliency_chans[:,1,:,:])
         #return a/(a+b+1e-6)
-        return saliency_chans
+        return self.sig(saliency_chans), logits
 
 class multi_TDNN(nn.Module):
     
-    def __init__(self,dur):
+    def __init__(self,dur, scale):
         super(multi_TDNN, self).__init__()
         
-        self.decoder = decoder()
+        self.decoder = decoder(scale)
 
         self.speaker = Speaker_resnet(dur=dur)
         #for name in self.speaker.parameters():
@@ -392,5 +395,5 @@ class multi_TDNN(nn.Module):
             #print('input:{},speaker:{}'.format(input.device,i.device))
         
         encoder_out,feature = self.speaker(input,mode='encoder')
-        mask = self.decoder(encoder_out)
-        return mask,feature
+        mask,logits = self.decoder(encoder_out)
+        return mask,logits,feature
