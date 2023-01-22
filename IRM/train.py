@@ -34,8 +34,8 @@ configs = {
     "ratio":0.1,
     "gpu":[0,1],
     "optimizer": {
-        "initial_lr": 0.001,
-        "final_lr":0.000001,
+        "initial_lr": 0.01,
+        "final_lr":0.00001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
