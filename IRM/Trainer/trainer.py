@@ -140,7 +140,7 @@ class IRMTrainer():
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            SaM = torch.where(yb>0.05*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
+            SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
             SaM =SaM.long()
             #SaM = self.vari_sigmoid(yb,50)
             '''
@@ -231,7 +231,7 @@ class IRMTrainer():
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
+            SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
             SaM =SaM.long()
 
                 #SaM_frame = self.vari_sigmoid(yb_frame,50)
