@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o mse_pos_v2_lr0.001_s2_w0.95.out
+#SBATCH -o mse_pos_v2_lr0.01_s2_w0.95.out
 #SBATCH --gres=gpu:2
 #SBATCH -w ttnusa3
 #SBATCH --cpus-per-task=16

@@ -425,7 +425,7 @@ class IRMApplier():
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            SaM = torch.where(yb>0.05*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
+            SaM = torch.where(yb>0.1*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
             SaM =SaM.long()
 
             '''
@@ -441,13 +441,13 @@ class IRMApplier():
                 os.makedirs(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2]))
             mask_ = np.sort(mask.detach().cpu().squeeze().numpy(),axis=None).squeeze()
             x = np.arange(len(mask_))
-            #plt.plot(x, mask_, color='blue', label='predict')
+            plt.plot(x, mask_, color='blue', label='predict')
             plt.plot(x, np.sort(SaM.detach().cpu().squeeze().numpy(),axis=None).squeeze(), color='yellow', label='target')
-            #plt.legend()
+            plt.legend()
             plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sort.png')))
 
             plt.close()
-            continue
+            #continue
             fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
             #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
 
