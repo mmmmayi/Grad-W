@@ -39,20 +39,22 @@ def ce(output,target,weight):
     print(torch.sum(ce)/torch.sum(weight))
 
 if __name__ =='__main__':
-    output = torch.randn(2,2,3,3)
+    output = torch.randn(2,2,5,5)
     target = torch.tensor([[[0,1,1],[1,0,0],[1,0,1]],[[0,1,1],[1,0,0],[1,0,1]]])
     weight = torch.FloatTensor([[[0.05,0.95,0.95],[0.95,0.05,0.05],[0.95,0.05,0.95]],[[0.05,0.95,0.95],[0.95,0.05,0.05],[0.95,0.05,0.95]]])
     #ce(output,target, weight)
     #loss = nn.CrossEntropyLoss(weight = torch.FloatTensor([0.05,0.95]))
     #print(loss(output,target))
-    mask = torch.randn(2,1,3,3)
+    mask = torch.randn(2,1,5,8)
     mask = torch.where(mask>0.8,1,0)
+    print(mask)
     box = torch.ones((3, 3), dtype=mask.dtype, requires_grad=False) 
     box = box[None, None, ...].repeat(1, 1, 1, 1)
     mask_edit = nnf.conv2d(mask, box, padding=1,groups=mask.size(1))
+    print(mask_edit)
     mask_edit = torch.where(mask_edit>0,0.1,0.05)
     weight = torch.where(mask==1,0.95,mask_edit)
-    print(weight)
-    ce(output,target, weight)
+    #print(weight)
+    #ce(output,target, weight)
     
 

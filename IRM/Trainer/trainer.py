@@ -13,7 +13,7 @@ import tools.utils as utils
 from tools.logger import get_logger
 from torch.utils.tensorboard import SummaryWriter
 from tools.metrics import compute_PESQ, compute_segsnr
-import torch.nn.functional as F
+import torch.nn.functional as nnf
 import torch.distributed as dist
 class IRMTrainer():
     def __init__(self,
@@ -104,8 +104,8 @@ class IRMTrainer():
         #print('best',this)
         #print('second',other_best)
         #print('==========')
-        t = F.relu(other_best - this + t_conf)
-        nt = F.relu(this - other_best + nt_conf)
+        t = nnf.relu(other_best - this + t_conf)
+        nt = nnf.relu(this - other_best + nt_conf)
         if isinstance(targeted, (bool, int)):
             return torch.mean(t) if targeted else torch.mean(nt)
 
@@ -120,17 +120,26 @@ class IRMTrainer():
         return res
 
     def ce(self, output, target, device):
-        weight_ = torch.where(target==0,torch.tensor(0.05, dtype=output.dtype).cuda().to(device),torch.tensor(0.95, dtype=output.dtype).cuda().to(device))
         B,C,T,F = output.size()
+        #weight_ = torch.where(target==0,torch.tensor(0.05, dtype=output.dtype).cuda().to(device),torch.tensor(0.95, dtype=output.dtype).cuda().to(device))
+        
+        box = torch.ones((3, 3), requires_grad=False)
+        box = box[None, None, ...].repeat(1, 1, 1, 1).cuda().to(device)
+        weight = nnf.conv2d(target.unsqueeze(1).float(), box, padding=1,groups=1)
+        weight = torch.where(weight>0,0.5,0.05)
+        
+        weight_ = torch.where(target.unsqueeze(1)==1,0.95,weight)
+
+       
         output = output.reshape(B,C,T*F)
         target = target.reshape(B,1,T*F)
-        weight = weight_.reshape(B,T*F)
+        weight = weight_.reshape(B,T*F).detach()
         output = torch.exp(output)
         output_sum = torch.sum(output,1)
         output_class = torch.gather(output,1,target).squeeze()
         ce = -torch.log(output_class/output_sum)*weight
         
-        return torch.sum(ce)/torch.sum(weight),weight_
+        return torch.sum(ce)/torch.sum(weight)
 
     def recall(self, output, target):
         maxk = 1
@@ -170,9 +179,8 @@ class IRMTrainer():
             SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
             SaM =SaM.long()
             #SaM = self.vari_sigmoid(yb,50)
-            mse_loss,weight = self.ce(logits,SaM, device)
-            #print(mse_loss)
-            print(self.bce(logits,SaM))
+            mse_loss = self.ce(logits,SaM, device)
+            #print(self.bce(logits,SaM))
             #print('================')
             #continue
             '''
@@ -180,24 +188,23 @@ class IRMTrainer():
                 for i in range(10):
                     temp = 0-SaM
                     #temp2 = self.vari_ReLU(yb,self.ratio,device) 
-                    fig, ax = plt.subplots(nrows=4, ncols=1, sharex=True)
+                    fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
                     librosa.display.specshow(feature[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
                     librosa.display.specshow(SaM[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-                    img = librosa.display.specshow(mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    librosa.display.specshow(weight[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[3])
+#                    img = librosa.display.specshow(mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+                    img = librosa.display.specshow(weight[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
                     fig.colorbar(img, ax=ax)
 
                     #img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
                     plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'.png')
                     plt.close()
            
-            
-
-            #inverse_mask = 1-mask
+            quit() 
             '''
+            #inverse_mask = 1-mask
+            
             tpr, tnr = self.recall(logits,SaM)    
-            print(tpr,tnr)
-            continue
+            #print(tpr,tnr)
             #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
             #logits = self.auxl(feature, target_spk, 'loss', (0-SaM).float())
             #preserve_score =  self.cw_loss(logits, target_spk, device,True)
@@ -277,7 +284,7 @@ class IRMTrainer():
                 #mel_c_ = pad(mel_c)
             
             #inverse_mask = 1-mask
-            mse_loss = self.bce(logits, SaM)
+            mse_loss = self.ce(logits,SaM, device)
             tpr,tnr = self.recall(logits,SaM)
             #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
             #logits = self.auxl(feature, target_spk, 'loss', mask)
