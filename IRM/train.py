@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_pos_v2_lr0.05_w0.95_s8"
+PROJECT_DIR = "exp/mse_pos_v2_lr0.05_w0.95_s8_dur10"
 
 ## Config
 configs = {
@@ -26,9 +26,9 @@ configs = {
     "scale":8,  
     "num_epochs": 50,
     "th": 0.1,
-    "batchsize": 64,
+    "batchsize": 32,
     "data": 'noisy',
-    "dur": 4,
+    "dur": 10,
     "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
@@ -71,7 +71,7 @@ if __name__ == "__main__":
         path_sorted = "../lst/snr_sorted",
         sub=1,
         spk="../lst/val_spk.lst",
-        batch_size=2,dur=5,
+        batch_size=2,dur=configs["dur"],
         sampling_rate=16000, mode="validation", max_size=100000, data=configs["data"])
     valid_loader = DataLoader(
         dataset=valid_irm_dataset,
