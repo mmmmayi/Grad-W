@@ -218,16 +218,22 @@ class Speaker_resnet(nn.Module):
         return start_point, end_point
 
     def forward(self, x, targets=None, mode='feature', mask=None):
-        if mode not in ['score','loss']:
+        if mode not in ['score','loss', 'acc']:
             with torch.no_grad():
                 x = self.pre(x)
                 x = self.Spec(x)
                 frame_len = x.shape[-1]
-                start, end = self._clip_point(frame_len)
-                x = x[:,:,start:end]
+                if mode =='apply':
+                    if frame_len%8>0:
+                        pad_num = math.ceil(frame_len/8)*8-frame_len
+                        pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
+                        x = pad(x)
+                else:
+                    start, end = self._clip_point(frame_len)
+                    x = x[:,:,start:end]
                 x = (self.Mel_scale(x)+1e-6).log()
         if mask is not None:
-            x = x+(mask+1+1e-6).log()
+            x = x+(mask+1+1e-8).log()
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
@@ -261,15 +267,26 @@ class Speaker_resnet(nn.Module):
             return frame
         elif mode == 'encoder':
             return [out1,out2,out3,out4,embed_a],feature
+        elif mode == 'apply':
+            return [out1,out2,out3,out4,embed_a],feature
         elif mode == 'reference':
             return embed_a
-        elif mode in ['score','loss']:
+        elif mode in ['score','loss','acc']:
             score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
             if mode == 'score':
                 return result
+            elif mode =='acc':
+                 return acc(score.detach(), targets.detach())
             else:
                 return score
+def acc(output,target):
+   
+    #output = output.reshape(-1)
+    _, pred = output.topk(1, 1, True, True)
+    target = target.reshape(-1)
+    correct = pred.eq(target)
+    return torch.sum(correct.float().sum())
 
 class PixelShuffleBlock(nn.Module):
     def forward(self, x):
@@ -387,13 +404,13 @@ class multi_TDNN(nn.Module):
                 #print('param',param)
             p.requires_grad = False
         self.speaker.eval()
-    def forward(self,input):
+    def forward(self,input,mode='encoder'):
         self.speaker.eval()
         #for name, param in self.speaker.parameters():
             #print(name)
         #print(next(self.speaker.parameters()).device)
             #print('input:{},speaker:{}'.format(input.device,i.device))
         
-        encoder_out,feature = self.speaker(input,mode='encoder')
+        encoder_out,feature = self.speaker(input,mode=mode)
         mask,logits = self.decoder(encoder_out)
         return mask,logits,feature

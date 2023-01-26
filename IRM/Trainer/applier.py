@@ -403,6 +403,7 @@ class IRMApplier():
         self.labels = torch.load('/data_a11/mayi/project/ECAPATDNN-analysis/speaker.pt')
         lines = open(eval_list).read().splitlines()
         files = []
+        accs=0
         for line in lines:
             files.append(line.split()[1])
             files.append(line.split()[2])
@@ -419,7 +420,12 @@ class IRMApplier():
             Xb = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             audio, _  = soundfile.read(os.path.join(clean_path, num,file))
             clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
-            mask,logits,feature = self.model(clean)
+            mask,logits,feature = self.model(clean,mode='apply')
+            B,_,T,F = mask.shape
+            mask = mask.reshape(1,T,F)
+            acc = self.auxl(feature,target_spk,'acc',mask)
+            accs += acc
+            continue
             feature = feature.requires_grad_()
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
@@ -460,7 +466,7 @@ class IRMApplier():
 
             plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','.png')))
             plt.close()
- 
+        print('accuracy',accs/len(setfiles))
 
 
 

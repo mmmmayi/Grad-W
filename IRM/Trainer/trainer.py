@@ -307,6 +307,7 @@ class IRMTrainer():
             #self.writer.add_scalar('Validation/preserve', ave_preserve_loss, epoch)
             self.writer.add_scalar('Validation/tpr', ave_tpr_loss, epoch)
             self.writer.add_scalar('Validation/tnr', ave_tnr_loss, epoch)
+            #print('tpr:{}, tnr:{}'.format(ave_tpr_loss,ave_tnr_loss))
             self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
             self.logger.info("Epoch:{}".format(epoch))
 
