@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_pos_v2_lr0.1_w0.95_vary_s8_th0.05"
+PROJECT_DIR = "exp/mse_pos_v2_lr0.5_w0.95_vary_s8_th0.05"
 
 ## Config
 configs = {
@@ -34,8 +34,8 @@ configs = {
     "ratio":0.1,
     "gpu":[0],
     "optimizer": {
-        "initial_lr": 0.1,
-        "final_lr":0.0001,
+        "initial_lr": 0.5,
+        "final_lr":0.0005,
         "beta1": 0.0,
         "beta2": 0.9}}
 
@@ -88,8 +88,8 @@ if __name__ == "__main__":
     else:
         nnet = multi_TDNN(dur=configs["dur"], scale=configs["scale"])
     nnet.cuda()
-    nnet_ddp = nnet.to(f'cuda:{local_rank}')
-    nnet_ddp = torch.nn.parallel.DistributedDataParallel(nnet_ddp, find_unused_parameters=False)
+    #nnet_ddp = nnet.to(f'cuda:{local_rank}')
+    nnet_ddp = torch.nn.parallel.DistributedDataParallel(nnet, find_unused_parameters=False)
     #nnet = torch.nn.parallel.DistributedDataParallel(nnet.cuda(local_rank), device_ids=[local_rank], output_device=local_rank)
     #print('Learnable parameters of the model:')
     #for name, param in nnet.named_parameters():

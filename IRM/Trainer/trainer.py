@@ -65,7 +65,7 @@ class IRMTrainer():
         self.auxl = Speaker_resnet()
         projection = ArcMarginProduct()
         self.auxl.add_module("projection", projection)
-        self.auxl = self.auxl.cuda().to(local_rank)
+        self.auxl = self.auxl.cuda()
         checkpoint = torch.load('exp/resnet_5994.pt')
         self.auxl.load_state_dict(checkpoint, strict=False)
         self.auxl.eval()
@@ -81,7 +81,7 @@ class IRMTrainer():
         relu = nn.ReLU()
         x = relu(x)
         max = torch.amax(x,dim=(1,2)).unsqueeze(-1).unsqueeze(-1)
-        reg = torch.where(x > max*th, x, torch.tensor(0, dtype=x.dtype).cuda().to(device))
+        reg = torch.where(x > max*th, x, torch.tensor(0, dtype=x.dtype).cuda())
         return reg/max
     def get_contributing_params(self, y, top_level=True):
         nf = y.grad_fn.next_functions if top_level else y.next_functions
@@ -96,9 +96,9 @@ class IRMTrainer():
 
     def cw_loss(self,logits, target_spk, device, targeted=True, t_conf=15, nt_conf=0.5):
         depth = logits.shape[-1]
-        one_hot_labels = torch.zeros(target_spk.size(0), depth).cuda().to(device)
+        one_hot_labels = torch.zeros(target_spk.size(0), depth).cuda()
         
-        one_hot_labels =torch.zeros(target_spk.size(0), depth).cuda().to(device).scatter_(1, target_spk.view(-1, 1).data, 1)
+        one_hot_labels =torch.zeros(target_spk.size(0), depth).cuda().scatter_(1, target_spk.view(-1, 1).data, 1)
         this = torch.sum(logits*one_hot_labels, 1)
         other_best, _ = torch.max(logits*(1.-one_hot_labels) - 12111*one_hot_labels, 1)   # subtracting 12111 from selected labels to make sure that they dont end up a maximum
         #print('best',this)
@@ -124,7 +124,7 @@ class IRMTrainer():
         #weight_ = torch.where(target==0,torch.tensor(0.05, dtype=output.dtype).cuda().to(device),torch.tensor(0.95, dtype=output.dtype).cuda().to(device))
         
         box = torch.ones((3, 3), requires_grad=False)
-        box = box[None, None, ...].repeat(1, 1, 1, 1).cuda().to(device)
+        box = box[None, None, ...].repeat(1, 1, 1, 1).cuda()
         weight = nnf.conv2d(target.unsqueeze(1).float(), box, padding=1,groups=1)
         for i in range(9):
             weight = torch.where(weight==i,0.05+i*0.1,weight)
@@ -168,16 +168,16 @@ class IRMTrainer():
             Xb, target_spk, clean, correct_spk  = sample_batched
             #print(Xb.device)
             _, B, _, W = Xb.shape
-            Xb = Xb.reshape(B,W).cuda().to(device)
-            clean = clean.reshape(B,W).cuda().to(device)
-            target_spk = target_spk.reshape(B).to(device)
+            Xb = Xb.reshape(B,W).cuda()
+            clean = clean.reshape(B,W).cuda()
+            target_spk = target_spk.reshape(B).cuda()
             mask,logits, feature = self.model(clean)
             feature = feature.detach().requires_grad_()
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
+            SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
             SaM =SaM.long()
             #SaM = self.vari_sigmoid(yb,50)
             mse_loss = self.ce(logits,SaM, device)
@@ -265,9 +265,9 @@ class IRMTrainer():
         for sample_batched in tqdm(self.validation_dataloader):
             Xb, target_spk, clean, correct_spk = sample_batched
             _, B, _, W = Xb.shape
-            Xb = Xb.reshape(B,W).cuda().to(device)
-            clean = clean.reshape(B,W).cuda().to(device)
-            target_spk = target_spk.squeeze().to(device)
+            Xb = Xb.reshape(B,W).cuda()
+            clean = clean.reshape(B,W).cuda()
+            target_spk = target_spk.squeeze().cuda()
            
             mask, logits, feature = self.model(clean)
             feature = feature.requires_grad_()
@@ -275,7 +275,7 @@ class IRMTrainer():
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda().to(device),torch.tensor(0, dtype=yb.dtype).cuda().to(device))
+            SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
             SaM =SaM.long()
 
                 #SaM_frame = self.vari_sigmoid(yb_frame,50)
