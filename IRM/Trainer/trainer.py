@@ -126,7 +126,8 @@ class IRMTrainer():
         box = torch.ones((3, 3), requires_grad=False)
         box = box[None, None, ...].repeat(1, 1, 1, 1).cuda().to(device)
         weight = nnf.conv2d(target.unsqueeze(1).float(), box, padding=1,groups=1)
-        weight = torch.where(weight>0,0.5,0.05)
+        for i in range(9):
+            weight = torch.where(weight==i,0.05+i*0.1,weight)
         
         weight_ = torch.where(target.unsqueeze(1)==1,0.95,weight)
 
@@ -193,10 +194,11 @@ class IRMTrainer():
                     librosa.display.specshow(SaM[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
 #                    img = librosa.display.specshow(mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
                     img = librosa.display.specshow(weight[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+                    print(weight[i,:,:])
                     fig.colorbar(img, ax=ax)
 
                     #img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'.png')
+                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'varied.png')
                     plt.close()
            
             quit() 

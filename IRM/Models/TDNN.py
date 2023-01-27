@@ -366,6 +366,9 @@ class decoder(nn.Module):
         self.scale = scale
     def vari_sigmoid(self,x,a):
         return 1/(1+(-a*x).exp())
+    def binary(self,mask):
+        mask = torch.where(mask>0,1,0)
+        return mask
 
     def forward(self,encoder_out):
         em = encoder_out[-1]
