@@ -420,12 +420,12 @@ class IRMApplier():
             Xb = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             audio, _  = soundfile.read(os.path.join(clean_path, num,file))
             clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
-            mask,logits,feature = self.model(Xb,mode='apply')
+            mask,logits,feature = self.model(clean,mode='apply')
             B,_,T,F = mask.shape
             mask = mask.reshape(1,T,F)
             acc = self.auxl(feature,target_spk,'acc',mask)
             accs += acc
-            #continue
+            continue
             feature = feature.requires_grad_()
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()

@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_pos_v2_lr0.5_w0.95_vary_s8_th0.05"
+PROJECT_DIR = "exp/mse_pos_v2_lr0.1_w0.8_vary_s8_th0.05"
 
 ## Config
 configs = {
@@ -34,8 +34,8 @@ configs = {
     "ratio":0.1,
     "gpu":[0],
     "optimizer": {
-        "initial_lr": 0.5,
-        "final_lr":0.0005,
+        "initial_lr": 0.1,
+        "final_lr":0.0001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
