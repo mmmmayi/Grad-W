@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_pos_v2_lr0.1_w0.8_vary_s8_th0.05"
+PROJECT_DIR = "exp/mse_pos_v2_lr0.1_w0.8_vary0.15_s8_th0.05"
 
 ## Config
 configs = {
