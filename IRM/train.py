@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_pos_v2_lr0.1_w0.8_vary0.15_s8_th0.05"
+PROJECT_DIR = "exp/mse_pos_v2_lr0.1_w2_vary0.2_s8_th0.05"
 
 ## Config
 configs = {
@@ -138,7 +138,7 @@ if __name__ == "__main__":
         irm_trainer.train_epoch(epoch, configs["weight"], local_rank, loader_size, scheduler)
         if local_rank == 0:
 
-            if epoch%10==0:
+            if epoch%5==0:
                 state_dict = nnet.state_dict()
                 torch.save(state_dict,f"{PROJECT_DIR}/models/model_{epoch}.pt")
         irm_trainer.set_models_to_eval_mode()
