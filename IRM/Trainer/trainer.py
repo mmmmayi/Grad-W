@@ -129,7 +129,7 @@ class IRMTrainer():
         for i in range(9):
             weight = torch.where(weight==i,0.05+i*0.2,weight)
         
-        weight_ = torch.where(target.unsqueeze(1)==1,2,weight)
+        weight_ = torch.where(target.unsqueeze(1)==1,4,weight)
 
        
         output = output.reshape(B,C,T*F)
