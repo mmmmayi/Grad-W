@@ -127,7 +127,7 @@ class IRMTrainer():
         box = box[None, None, ...].repeat(1, 1, 1, 1).cuda()
         weight = nnf.conv2d(target.unsqueeze(1).float(), box, padding=1,groups=1)
         for i in range(9):
-            weight = torch.where(weight==i,0.05+i*0.2,weight)
+            weight = torch.where(weight==i,0.05+i*0.3,weight)
         
         weight_ = torch.where(target.unsqueeze(1)==1,4,weight)
 
