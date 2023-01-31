@@ -119,10 +119,10 @@ class IRMTrainer():
         res = correct/(batch_size*T*F)
         return res
 
-    def ce(self, output, target, device):
+    def ce(self, output, target, yb):
         B,C,T,F = output.size()
         #weight_ = torch.where(target==0,torch.tensor(0.05, dtype=output.dtype).cuda().to(device),torch.tensor(0.95, dtype=output.dtype).cuda().to(device))
-        
+        '''
         box = torch.ones((3, 3), requires_grad=False)
         box = box[None, None, ...].repeat(1, 1, 1, 1).cuda()
         weight = nnf.conv2d(target.unsqueeze(1).float(), box, padding=1,groups=1)
@@ -130,8 +130,10 @@ class IRMTrainer():
             weight = torch.where(weight==i,0.05+i*0.3,weight)
         
         weight_ = torch.where(target.unsqueeze(1)==1,4,weight)
-
-       
+        '''
+        min = torch.amin(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+        weight = torch.where(yb<self.config["th"]*min,torch.tensor(0.5, dtype=yb.dtype).cuda(),torch.tensor(0.05, dtype=yb.dtype).cuda())
+        weight_ = torch.where(target==1,0.95,weight)
         output = output.reshape(B,C,T*F)
         target = target.reshape(B,1,T*F)
         weight = weight_.reshape(B,T*F).detach()
@@ -180,7 +182,7 @@ class IRMTrainer():
             SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
             SaM =SaM.long()
             #SaM = self.vari_sigmoid(yb,50)
-            mse_loss = self.ce(logits,SaM, device)
+            mse_loss = self.ce(logits,SaM,yb)
             #print(self.bce(logits,SaM))
             #print('================')
             #continue
@@ -194,7 +196,7 @@ class IRMTrainer():
                     librosa.display.specshow(SaM[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
 #                    img = librosa.display.specshow(mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
                     img = librosa.display.specshow(weight[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    print(weight[i,:,:])
+                    #print(weight[i,:,:])
                     fig.colorbar(img, ax=ax)
 
                     #img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
