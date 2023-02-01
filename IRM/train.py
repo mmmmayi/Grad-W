@@ -15,13 +15,13 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_pos_v2_lr0.1_w0.95_neg0.5_s8_th0.05"
+PROJECT_DIR = "exp/mse_pos_v2_lr0.1_w2_vary0.2_s8_th0.05"
 
 ## Config
 configs = {
-    "input_dim": 1793,
-    "hidden_units": 128,
-    "output_dim": 257,
+    "w_p": 0.95,
+    "w_hn": 0.5,
+    "w_n": 0.05,
     "num_layers": 3,      
     "scale":8,  
     "num_epochs": 50,
@@ -30,7 +30,7 @@ configs = {
     "data": 'noisy',
     "dur": 4,
     "weight": 1000,
-    "resume_epoch":None,
+    "resume_epoch":50,
     "ratio":0.1,
     "gpu":[0],
     "optimizer": {
@@ -119,8 +119,7 @@ if __name__ == "__main__":
     BCE_loss = nn.BCELoss()
     MSE_loss = nn.MSELoss()
     COS_loss = nn.CosineEmbeddingLoss()
-    weight = torch.FloatTensor([0.05,0.95]).cuda().to(local_rank)
-    CE_loss = nn.CrossEntropyLoss(weight=weight)
+    CE_loss = nn.CrossEntropyLoss()
     #loss_fn = nn.L1Loss(reduction='sum')
     #scheduler = MultiStepLR(optimizer=optimizer, milestones=[4, 8, 12, 16], gamma=0.5)
 
@@ -129,18 +128,20 @@ if __name__ == "__main__":
         config=configs,
         project_dir=PROJECT_DIR,
         model=nnet_ddp, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,CE_loss], dur = configs["dur"],
-        train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"],local_rank=local_rank)
+        train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"],
+        local_rank=local_rank, w_p=configs["w_p"], w_n=configs["w_n"],w_hn=configs["w_hn"])
     device = torch.device("cuda")
     dist.barrier()
     #irm_trainer._get_global_mean_variance()
     for epoch in range(1, configs["num_epochs"]+1):
-        irm_trainer.set_models_to_train_mode()
-        irm_trainer.train_epoch(epoch, configs["weight"], local_rank, loader_size, scheduler)
-        if local_rank == 0:
+        #irm_trainer.set_models_to_train_mode()
+        #irm_trainer.train_epoch(epoch, configs["weight"], local_rank, loader_size, scheduler)
+        #if local_rank == 0:
 
-            if epoch%5==0:
-                state_dict = nnet.state_dict()
-                torch.save(state_dict,f"{PROJECT_DIR}/models/model_{epoch}.pt")
+            #if epoch%5==0:
+                #state_dict = nnet.state_dict()
+                #torch.save(state_dict,f"{PROJECT_DIR}/models/model_{epoch}.pt")
         irm_trainer.set_models_to_eval_mode()
         irm_trainer.validation_epoch(epoch, configs["weight"], local_rank)
+        quit()
     #irm_trainer.train(configs["weight"], local_rank, resume_epoch=configs["resume_epoch"])

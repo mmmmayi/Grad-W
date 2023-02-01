@@ -19,10 +19,13 @@ class IRMTrainer():
     def __init__(self,
             config, project_dir,
             model, optimizer, loss_fn, dur,
-            train_dl, validation_dl, mode, ratio, local_rank):
+            train_dl, validation_dl, mode, ratio, 
+            local_rank,w_p,w_n,w_hn):
         # Init device
         self.config = config
-
+        self.w_p = w_p
+        self.w_n = w_n
+        self.w_hn = w_hn
         # Dataloaders
         self.train_dataloader = train_dl
         self.validation_dataloader = validation_dl  ##to check
@@ -132,8 +135,8 @@ class IRMTrainer():
         weight_ = torch.where(target.unsqueeze(1)==1,4,weight)
         '''
         min = torch.amin(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-        weight = torch.where(yb<self.config["th"]*min,torch.tensor(0.5, dtype=yb.dtype).cuda(),torch.tensor(0.05, dtype=yb.dtype).cuda())
-        weight_ = torch.where(target==1,0.95,weight)
+        weight = torch.where(yb<self.config["th"]*min,torch.tensor(self.w_hn, dtype=yb.dtype).cuda(),torch.tensor(self.w_n, dtype=yb.dtype).cuda())
+        weight_ = torch.where(target==1,self.w_p,weight)
         output = output.reshape(B,C,T*F)
         target = target.reshape(B,1,T*F)
         weight = weight_.reshape(B,T*F).detach()
@@ -142,19 +145,19 @@ class IRMTrainer():
         output_class = torch.gather(output,1,target).squeeze()
         ce = -torch.log(output_class/output_sum)*weight
         
-        return torch.sum(ce)/torch.sum(weight)
+        return torch.sum(ce)/torch.sum(weight), weight_
 
-    def recall(self, output, target):
+    def recall(self, output, weight):
         maxk = 1
-        batch_size, T,F = target.shape
+        batch_size, T,F = weight.shape
         _, pred = output.topk(maxk, 1, True, True)
         pred = torch.sum(pred,1)
         pred = pred.reshape(-1)
         p_idx = torch.nonzero(pred).squeeze()
-        t_idx = torch.nonzero(target.reshape(-1)).squeeze()
+        t_idx = (weight.reshape(-1) == self.w_p).nonzero().squeeze()
         tpr = len(np.intersect1d(p_idx.detach().cpu(),t_idx.detach().cpu()))/t_idx.numel()
         n_idx = (pred == 0).nonzero().squeeze()
-        f_idx = (target.reshape(-1) == 0).nonzero().squeeze()
+        f_idx = (weight.reshape(-1) == self.w_hn).nonzero().squeeze()
         tnr = len(np.intersect1d(n_idx.detach().cpu(),f_idx.detach().cpu()))/f_idx.numel()
         return tpr, tnr
 
@@ -182,7 +185,7 @@ class IRMTrainer():
             SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
             SaM =SaM.long()
             #SaM = self.vari_sigmoid(yb,50)
-            mse_loss = self.ce(logits,SaM,yb)
+            mse_loss, weight = self.ce(logits,SaM,yb)
             #print(self.bce(logits,SaM))
             #print('================')
             #continue
@@ -207,7 +210,7 @@ class IRMTrainer():
             '''
             #inverse_mask = 1-mask
             
-            tpr, tnr = self.recall(logits,SaM)    
+            tpr, tnr = self.recall(logits,weight)    
             #print(tpr,tnr)
             #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
             #logits = self.auxl(feature, target_spk, 'loss', (0-SaM).float())
@@ -288,8 +291,8 @@ class IRMTrainer():
                 #mel_c_ = pad(mel_c)
             
             #inverse_mask = 1-mask
-            mse_loss = self.ce(logits,SaM, device)
-            tpr,tnr = self.recall(logits,SaM)
+            mse_loss,weight = self.ce(logits,SaM,yb)
+            tpr,tnr = self.recall(logits,weight)
             #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
             #logits = self.auxl(feature, target_spk, 'loss', mask)
             #preserve_score = self.cw_loss(logits, target_spk, device, True)
@@ -311,7 +314,7 @@ class IRMTrainer():
             #self.writer.add_scalar('Validation/preserve', ave_preserve_loss, epoch)
             self.writer.add_scalar('Validation/tpr', ave_tpr_loss, epoch)
             self.writer.add_scalar('Validation/tnr', ave_tnr_loss, epoch)
-            #print('tpr:{}, tnr:{}'.format(ave_tpr_loss,ave_tnr_loss))
+            print('tpr:{}, tnr:{}'.format(ave_tpr_loss,ave_tnr_loss))
             self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
             self.logger.info("Epoch:{}".format(epoch))
 
