@@ -425,7 +425,7 @@ class IRMApplier():
             mask = mask.reshape(1,T,F)
             acc = self.auxl(feature,target_spk,'acc',mask)
             accs += acc
-            #continue
+            continue
             feature = feature.requires_grad_()
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
