@@ -15,24 +15,24 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_pos_adam_lr0.01_w0.95_neg0.8_s8_th0.05"
+PROJECT_DIR = "exp/mse_pos_adam_lr0.01_w0.95_hn0.92_n0.001_s8_th0.05_all"
 
 ## Config
 configs = {
     "w_p": 0.95,
-    "w_hn": 0.8,
-    "w_n": 0.05,
+    "w_hn": 0.92,
+    "w_n": 0.001,
     "num_layers": 3,      
     "scale":8,  
     "num_epochs": 50,
     "th": 0.05,
-    "batchsize": 16,
+    "batchsize": 64,
     "data": 'noisy',
     "dur": 4,
     "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
-    "gpu":[0,1],
+    "gpu":[0],
     "optimizer": {
         "initial_lr": 0.01,
         "final_lr":0.00001,
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     train_irm_dataset = IRMDataset(
         path="../lst/utt_len",
         path_sorted = None,
-        sub=0.1,
+        sub=1,
         spk="../lst/train_spk.lst",
         batch_size=configs["batchsize"], dur=configs["dur"],
         sampling_rate=16000, mode="train", max_size=200000, data=configs["data"])
@@ -138,7 +138,7 @@ if __name__ == "__main__":
         irm_trainer.train_epoch(epoch, configs["weight"], local_rank, loader_size, scheduler)
         if local_rank == 0:
 
-            if epoch%5==0:
+            if epoch%2==0:
                 state_dict = nnet.state_dict()
                 torch.save(state_dict,f"{PROJECT_DIR}/models/model_{epoch}.pt")
         irm_trainer.set_models_to_eval_mode()

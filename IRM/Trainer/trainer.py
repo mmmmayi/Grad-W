@@ -192,6 +192,13 @@ class IRMTrainer():
             '''
             if device==0:
                 for i in range(10):
+                    mask_ = np.sort(yb[i,:,:].detach().cpu().squeeze().numpy(),axis=None).squeeze()
+                    x = np.arange(len(mask_))
+                    plt.plot(x, mask_, color='blue', label='predict')
+                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'sort.png')
+
+                    plt.close()
+ 
                     temp = 0-SaM
                     #temp2 = self.vari_ReLU(yb,self.ratio,device) 
                     fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
