@@ -15,24 +15,24 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/mse_pos_v2_lr0.01_w0.95_hn0.94_n0.001_s8_th0.05"
+PROJECT_DIR = "exp/mse_pos_adam_lr0.01_w0.95_neg0.8_s8_th0.05"
 
 ## Config
 configs = {
     "w_p": 0.95,
-    "w_hn": 0.94,
-    "w_n": 0.001,
+    "w_hn": 0.8,
+    "w_n": 0.05,
     "num_layers": 3,      
     "scale":8,  
     "num_epochs": 50,
     "th": 0.05,
-    "batchsize": 64,
+    "batchsize": 16,
     "data": 'noisy',
     "dur": 4,
     "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
-    "gpu":[0],
+    "gpu":[0,1],
     "optimizer": {
         "initial_lr": 0.01,
         "final_lr":0.00001,
@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
         print('Number of trainable parameters: {}'.format(total_params))
     #optimizer = torch.optim.Adam(nnet.decoder.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.SGD(list(nnet_ddp.module.decoder.parameters()),lr=configs["optimizer"]["initial_lr"])
+    optimizer = torch.optim.Adam(list(nnet_ddp.module.decoder.parameters()),lr=configs["optimizer"]["initial_lr"])
     loader_size = len(train_irm_dataset)//world_size
     print(loader_size)
     scheduler = ExponentialDecrease(optimizer,
