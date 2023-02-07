@@ -194,8 +194,6 @@ class IRMTrainer():
             #SaM = self.vari_sigmoid(yb,50)
             ce_p, ce_b, ce_n, weight = self.ce(logits,SaM,yb)
             #print(self.bce(logits,SaM))
-            #print('================')
-            #continue
             '''
             if device==0:
                 for i in range(10):
