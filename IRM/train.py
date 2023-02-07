@@ -26,13 +26,13 @@ configs = {
     "scale":8,  
     "num_epochs": 50,
     "th": 0.05,
-    "batchsize": 16,
+    "batchsize": 32,
     "data": 'noisy',
     "dur": 4,
     "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
-    "gpu":[0,1],
+    "gpu":[0],
     "optimizer": {
         "initial_lr": 0.0003,
         "final_lr":0.0000003,
@@ -87,6 +87,7 @@ if __name__ == "__main__":
         nnet.load_state_dict(checkpoint)
     else:
         nnet = multi_TDNN(dur=configs["dur"], scale=configs["scale"])
+    print(nnet)
     nnet.cuda()
     #nnet_ddp = nnet.to(f'cuda:{local_rank}')
     nnet_ddp = torch.nn.parallel.DistributedDataParallel(nnet, find_unused_parameters=False)
