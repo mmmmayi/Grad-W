@@ -311,10 +311,18 @@ def CNNBlock(in_channels, out_channels,
 
 def SubpixelUpsampler(in_channels, out_channels, kernel_size=3, activation_fn=lambda: torch.nn.ReLU(inplace=False), follow_with_bn=True):
     _modules = [
-        CNNBlock(in_channels, out_channels * 4, kernel_size=kernel_size, follow_with_bn=follow_with_bn),#[B,1024,4,4]
-        PixelShuffleBlock(),
+        #CNNBlock(in_channels, out_channels * 4, kernel_size=kernel_size, follow_with_bn=follow_with_bn),#[B,1024,4,4]
+        #PixelShuffleBlock(),
+        transConv(in_channels, out_channels),
         activation_fn(),
     ]
+    return nn.Sequential(*_modules)
+
+def transConv(in_channels, out_channels, follow_with_bn=True, activation_fn=lambda: nn.ReLU(True), affine=True):
+    _modules = []
+    _modules.append(nn.ConvTranspose2d(in_channels, out_channels,3,stride=2,padding=1,output_padding=1))
+    _modules.append(nn.BatchNorm2d(out_channels, affine=affine))
+    _modules.append(activation_fn())
     return nn.Sequential(*_modules)
 
 class UpSampleBlock(nn.Module):
