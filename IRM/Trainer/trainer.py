@@ -184,6 +184,35 @@ class IRMTrainer():
             clean = clean.reshape(B,W).cuda()
             target_spk = target_spk.reshape(B).cuda()
             mask,logits, feature = self.model(clean)
+            '''
+            if device==0:
+                for i in range(10):
+                    encoder_0 = torch.mean(encoder[0][i,:,:,:],0).squeeze()
+                    encoder_1 = torch.mean(encoder[1][i,:,:,:],0).squeeze()
+                    encoder_2 = torch.mean(encoder[2][i,:,:,:],0).squeeze()
+                    encoder_3 = torch.mean(encoder[3][i,:,:,:],0).squeeze()
+                    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
+                    #temp2 = self.vari_ReLU(yb,self.ratio,device)
+                    img = librosa.display.specshow(encoder_0.detach().cpu().squeeze().numpy(),x_axis=None)
+                    fig.colorbar(img, ax=ax)
+                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'0.png')
+                    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
+                    img = librosa.display.specshow(encoder_1.detach().cpu().squeeze().numpy(),x_axis=None)
+                    fig.colorbar(img, ax=ax)
+                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'1.png')
+                    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
+                    img = librosa.display.specshow(encoder_2.detach().cpu().squeeze().numpy(),x_axis=None)
+                    fig.colorbar(img, ax=ax)
+                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'2.png')
+                    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
+                    img = librosa.display.specshow(encoder_3.detach().cpu().squeeze().numpy(),x_axis=None)
+                    fig.colorbar(img, ax=ax)
+                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'3.png')
+ 
+
+            quit()
+            '''
+
             feature = feature.detach().requires_grad_()
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()

@@ -314,17 +314,17 @@ def SubpixelUpsampler(in_channels, out_channels, num_blocks, kernel_size=3, acti
         #CNNBlock(in_channels, out_channels * 4, kernel_size=kernel_size, follow_with_bn=follow_with_bn),#[B,1024,4,4]
         #PixelShuffleBlock(),
         transConv(in_channels, out_channels, num_blocks),
-        activation_fn(),
+        #activation_fn(),
     ]
     return nn.Sequential(*_modules)
 
-def transConv(in_channels, out_channels, num_blocks, stride = 2, follow_with_bn=True, activation_fn=lambda: nn.ReLU(True), affine=True):
+def transConv(in_channels, out_channels, num_blocks, stride = 2, follow_with_bn=True, activation_fn=lambda: nn.ELU(True), affine=True):
     _modules = []
     strides = [stride] + [1] * (num_blocks - 1) 
     out_padding=1
     for stride in strides:
         _modules.append(nn.ConvTranspose2d(in_channels, out_channels,3,stride=stride,padding=1,output_padding=out_padding))
-        _modules.append(nn.BatchNorm2d(out_channels, affine=affine))
+        _modules.append(nn.InstanceNorm2d(out_channels, affine=affine))
         _modules.append(activation_fn())
         in_channels = out_channels
         out_padding = 0
@@ -337,10 +337,10 @@ class UpSampleBlock(nn.Module):
         super(UpSampleBlock, self).__init__()
         self.upsampler = SubpixelUpsampler(in_channels=in_channels,out_channels=out_channels, num_blocks = num_blocks)
         self.follow_up = Block(out_channels+passthrough_channels,out_channels)
-
+        self.norm = nn.InstanceNorm2d(out_channels)
     def forward(self, x, passthrough):
         out = self.upsampler(x)
-        out = torch.cat((out,passthrough), 1)
+        out = torch.cat((out,self.norm(passthrough)), 1)
         return self.follow_up(out)
 
 class Block(nn.Module):
@@ -349,22 +349,22 @@ class Block(nn.Module):
     def __init__(self, in_planes, planes, stride=1):
         super(Block, self).__init__()
         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
+        self.bn1 = nn.InstanceNorm2d(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
+        self.bn2 = nn.InstanceNorm2d(planes)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
                 nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion*planes)
+                nn.InstanceNorm2d(self.expansion*planes)
             )
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
+        out = F.elu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
         out += self.shortcut(x)
-        out = F.relu(out)
+        out = F.elu(out)
         return out
 
 
