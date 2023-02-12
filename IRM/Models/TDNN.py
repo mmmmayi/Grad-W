@@ -399,7 +399,7 @@ class decoder(nn.Module):
         #a = torch.abs(saliency_chans[:,0,:,:])
         #b = torch.abs(saliency_chans[:,1,:,:])
         #return a/(a+b+1e-6)
-        return self.sig(torch.pow(saliency_chans,1)), logits
+        return self.sig(torch.pow(saliency_chans,1)).squeeze(), logits
 
 class multi_TDNN(nn.Module):
     

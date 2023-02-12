@@ -78,7 +78,7 @@ class IRMDataset(Dataset):
                 clean_tensor = torch.FloatTensor(np.stack([clean_audio],axis=0))
                 return input_tensor, clean_tensor
 
-            spk = pairs[0].split('/')[-3]
+            spk = pairs[0].split('/')[-1].split('-')[0]
             target_category = torch.tensor(int(self.labels[spk]))
             
             if self.mode in ['train','validation']:
@@ -164,16 +164,17 @@ def sort(path, path_sorted, spk_list,dur, sub):
         spk_random = list(utt_dict.keys())        
         random.shuffle(spk_random)
         for spk_i in spk_random:
-            spk = spk_i.split('/')[0]
+            spk = spk_i.split('/')[1].split('-')[0]
             if spk not in spk_list:
                 continue
             if utt_dict[spk_i]<dur*16000:
                 continue
+            if spk not in spk_utt:
+                spk_utt[spk]=0
             utts_temp.append([spk_i, utt_dict[spk_i]])
             i+=1
             if i>num:
                 break
-
     sort_utts = sorted(utts_temp,key=lambda info:int(info[1]),reverse=False)
     for utt in sort_utts:
         utts.append(utt[0])
@@ -184,12 +185,9 @@ def generate(path,mode):
     clean_data,clean_label = [],[]
     noisy_data,noisy_label = [],[]
     for i in path:
-        spk = i.split('/')[0]
-        idx = int(spk[2:])
-        num = str(idx//200)
         
         #if mode=='train':
-        noisy_data.append(os.path.join('/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/aac_split',num,i))
+        noisy_data.append(os.path.join('/data_a11/mayi/dataset/voxceleb_asvtorch/VoxCeleb2/dev/acc',i))
         #else:
             #noisy_data.append(os.path.join('/data_a11/mayi/dataset/IRM/mix',num,i))
   

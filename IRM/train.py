@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_pos_8s_lr0.3_w0.95_hn0.92_n0.001_s8_th0.05_L_eluin"
+PROJECT_DIR = "exp/transCov_pos_8s_lr0.3_w0.95_hn0.92_n0.001_s8_th0.05_L_eluin_all"
 
 ## Config
 configs = {
@@ -26,7 +26,7 @@ configs = {
     "scale":8,  
     "num_epochs": 50,
     "th": 0.05,
-    "batchsize": 32,
+    "batchsize": 16,
     "data": 'noisy',
     "dur": 8,
     "weight": 1000,
@@ -50,9 +50,9 @@ if __name__ == "__main__":
     ## Dataloader
     # train
     train_irm_dataset = IRMDataset(
-        path="../lst/utt_len",
+        path="../lst/cat_utt_len",
         path_sorted = None,
-        sub=0.1,
+        sub=1,
         spk="../lst/train_spk.lst",
         batch_size=configs["batchsize"], dur=configs["dur"],
         sampling_rate=16000, mode="train", max_size=200000, data=configs["data"])

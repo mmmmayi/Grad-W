@@ -170,7 +170,7 @@ class IRMTrainer():
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
         relu = nn.ReLU()
-        running_p, running_b, running_n, running_tpr, running_tnr, running_thf, running_tht = 0,0,0,0,0,0,0
+        running_p, running_b, running_n, running_tpr, running_tnr, running_mse, running_tht = 0,0,0,0,0,0,0
         i_batch,diff_batch = 0,0
         self.train_dataloader.dataset.shuffle(epoch)
         for sample_batched in self.train_dataloader:
@@ -252,17 +252,12 @@ class IRMTrainer():
             #inverse_mask = 1-mask
             
             tpr, tnr = self.recall(logits,weight)    
-            #print(tpr,tnr)
-            #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
-            #logits = self.auxl(feature, target_spk, 'loss', (0-SaM).float())
-            #preserve_score =  self.cw_loss(logits, target_spk, device,True)
-            #continue
-            #logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
-            #remove_score = self.cw_loss(logits,target_spk,device,False)
+            #mse = self.mse(mask, SaM.float())
             train_loss = ce_p+ce_b+ce_n
             running_p += ce_p.item()
             running_b += ce_b.item()
             running_n += ce_n.item()
+            #running_mse += mse.item()
             #running_preserve += preserve_score.item()
             #running_remove += remove_score.item()
             running_tpr += tpr
@@ -290,12 +285,13 @@ class IRMTrainer():
             ave_p = running_p / i_batch
             ave_b = running_b / i_batch
             ave_n = running_n / i_batch
+            #ave_mse = running_mse / i_batch
             ave_tnr_loss = running_tnr / i_batch
             ave_tpr_loss = running_tpr / i_batch
             self.writer.add_scalar('Train/p', ave_p, epoch)
             self.writer.add_scalar('Train/b', ave_b, epoch)
             self.writer.add_scalar('Train/n', ave_n, epoch)
-            #self.writer.add_scalar('Train/preserve', ave_preserve_loss, epoch)
+            #self.writer.add_scalar('Train/mse', ave_mse, epoch)
             self.writer.add_scalar('Train/tnr', ave_tnr_loss, epoch)
             self.writer.add_scalar('Train/tpr', ave_tpr_loss, epoch)
             self.logger.info("Epoch:{}".format(epoch)) 
@@ -308,7 +304,7 @@ class IRMTrainer():
 
     def validation_epoch(self, epoch, weight, device):
         start_time = time.time()
-        running_p, running_b, running_n, running_enh_loss, running_diff_loss, running_tnr_loss, running_tpr_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        running_p, running_b, running_n, running_mse_loss, running_diff_loss, running_tnr_loss, running_tpr_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         i_batch,diff_batch = 0,0
         relu = nn.ReLU()
         
@@ -338,6 +334,7 @@ class IRMTrainer():
             
             #inverse_mask = 1-mask
             ce_p, ce_b, ce_n,weight = self.ce(logits,SaM,yb)
+            #mse = self.mse(mask, SaM.float())
             tpr,tnr = self.recall(logits,weight)
             #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
             #logits = self.auxl(feature, target_spk, 'loss', mask)
@@ -345,6 +342,7 @@ class IRMTrainer():
             #logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
             #remove_score = self.cw_loss(logits,target_spk,device, False)
             running_p += ce_p.item()
+            #running_mse_loss += mse.item()
             running_b += ce_b.item()
             running_n += ce_n.item()
             running_tnr_loss += tnr
@@ -356,11 +354,13 @@ class IRMTrainer():
             ave_p = running_p / i_batch
             ave_b = running_b / i_batch
             ave_n = running_n / i_batch
+            #ave_mse = running_mse_loss / i_batch
             ave_tnr_loss = running_tnr_loss / i_batch
             ave_tpr_loss = running_tpr_loss / i_batch
             end_time = time.time()
             self.writer.add_scalar('Validation/p', ave_p, epoch)
             self.writer.add_scalar('Validation/b', ave_b, epoch)
+            #self.writer.add_scalar('Validation/mse', ave_mse, epoch)
             self.writer.add_scalar('Validation/n', ave_n, epoch)
             self.writer.add_scalar('Validation/tpr', ave_tpr_loss, epoch)
             self.writer.add_scalar('Validation/tnr', ave_tnr_loss, epoch)
