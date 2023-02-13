@@ -94,8 +94,13 @@ class IRMDataset(Dataset):
 
             if len(noisy_input)==0:
                 clip_input = input_tensor.shape[-1]
-            noisy_input.append(input_tensor[:,0:clip_input])
-            clean_input.append(clean_tensor[:,0:clip_input])
+                start_point = 0
+                end_point = clip_input
+                if clip_input >15*16000:
+                    start_point = np.random.randint(0, clip_input - 15*16000 + 1)
+                    end_point = start_point+15*16000
+            noisy_input.append(input_tensor[:,start_point:end_point])
+            clean_input.append(clean_tensor[:,start_point:end_point])
             target_spk.append(target_category)
         if self.mode in ['train','validation']:
             return torch.stack(noisy_input), torch.stack(target_spk), torch.stack(clean_input), correct_spk

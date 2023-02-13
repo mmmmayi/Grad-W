@@ -254,6 +254,11 @@ class IRMTrainer():
             tpr, tnr = self.recall(logits,weight)    
             #mse = self.mse(mask, SaM.float())
             train_loss = ce_p+ce_b+ce_n
+            if torch.isnan(train_loss):
+                torch.save(feature,'/data_a11/mayi/project/SIP/IRM/exp/debug/feature.pt')
+                state_dict = self.model.state_dict()
+                torch.save(state_dict,'/data_a11/mayi/project/SIP/IRM/exp/debug/model.pt')
+                quit()
             running_p += ce_p.item()
             running_b += ce_b.item()
             running_n += ce_n.item()
