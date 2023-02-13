@@ -123,6 +123,8 @@ class IRMTrainer():
         return res
 
     def ce(self, output, target, yb):
+        output_ = 1-output
+        output = torch.cat((output_.unsqueeze(1), output.unsqueeze(1)),1)
         B,C,T,F = output.size()
         #weight_ = torch.where(target==0,torch.tensor(0.05, dtype=output.dtype).cuda().to(device),torch.tensor(0.95, dtype=output.dtype).cuda().to(device))
         '''
@@ -140,10 +142,8 @@ class IRMTrainer():
         output = output.reshape(B,C,T*F)
         target = target.reshape(B,1,T*F)
         weight = weight_.reshape(B,T*F).detach()
-        output = torch.exp(output)
-        output_sum = torch.sum(output,1)
         output_class = torch.gather(output,1,target).squeeze()
-        ce = -torch.log(output_class/output_sum)*weight
+        ce = -torch.log(output_class)*weight
         ce = ce.reshape(-1)
         weight = weight.reshape(-1)
         idx_p = (weight==self.w_p).nonzero().squeeze()
@@ -183,7 +183,7 @@ class IRMTrainer():
             Xb = Xb.reshape(B,W).cuda()
             clean = clean.reshape(B,W).cuda()
             target_spk = target_spk.reshape(B).cuda()
-            mask,logits, feature = self.model(clean)
+            logits, feature = self.model(clean)
             '''
             if device==0:
                 for i in range(10):
@@ -321,7 +321,7 @@ class IRMTrainer():
             clean = clean.reshape(B,W).cuda()
             target_spk = target_spk.squeeze().cuda()
            
-            mask, logits, feature = self.model(clean)
+            logits, feature = self.model(clean)
             feature = feature.requires_grad_()
             score = self.auxl(feature, target_spk, 'score')
             self.auxl.zero_grad()
