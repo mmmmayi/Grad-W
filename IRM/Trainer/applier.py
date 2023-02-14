@@ -41,6 +41,13 @@ class IRMApplier():
         # Load model
         self.model = multi_TDNN(dur=4).cuda()
         checkpoint = torch.load(model_path)
+        '''
+        from collections import OrderedDict
+        new_state_dict = OrderedDict()
+        for k, v in checkpoint.items():
+            name = k[7:] # remove 'module.' of DataParallel/DistributedDataParallel
+            new_state_dict[name] = v
+        '''
         self.model.load_state_dict(checkpoint)
         self.loss = nn.MSELoss()
         self.model.eval()
@@ -420,7 +427,8 @@ class IRMApplier():
             Xb = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             audio, _  = soundfile.read(os.path.join(clean_path, num,file))
             clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
-            mask,logits,feature = self.model(clean,mode='apply')
+            #feature = torch.load('/data_a11/mayi/project/SIP/IRM/exp/debug/feature.pt')
+            mask,feature = self.model(clean)
             acc = self.auxl(feature,target_spk,'acc',mask)
             accs += acc
             #continue

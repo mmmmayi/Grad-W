@@ -155,6 +155,8 @@ class IRMTrainer():
         return torch.sum(ce_p)/torch.sum(weight), torch.sum(ce_n)/torch.sum(weight), torch.sum(ce_hn)/torch.sum(weight), weight_
 
     def recall(self, output, weight):
+        output_ = 1-output
+        output = torch.cat((output_.unsqueeze(1), output.unsqueeze(1)),1)       
         maxk = 1
         batch_size, T,F = weight.shape
         _, pred = output.topk(maxk, 1, True, True)

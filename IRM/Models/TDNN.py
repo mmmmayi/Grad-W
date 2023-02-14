@@ -218,6 +218,7 @@ class Speaker_resnet(nn.Module):
         return start_point, end_point
 
     def forward(self, x, targets=None, mode='feature', mask=None):
+        
         if mode not in ['score','loss', 'acc']:
             with torch.no_grad():
                 x = self.pre(x)
@@ -237,6 +238,7 @@ class Speaker_resnet(nn.Module):
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
+        
         feature = x
         x = feature - torch.mean(feature, dim=-1, keepdim=True)
         #x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
@@ -314,18 +316,31 @@ def SubpixelUpsampler(in_channels, out_channels, num_blocks, kernel_size=3, acti
         #CNNBlock(in_channels, out_channels * 4, kernel_size=kernel_size, follow_with_bn=follow_with_bn),#[B,1024,4,4]
         #PixelShuffleBlock(),
         transConv(in_channels, out_channels, num_blocks),
+        PrintLayer()
         #activation_fn(),
     ]
     return nn.Sequential(*_modules)
 
-def transConv(in_channels, out_channels, num_blocks, stride = 2, follow_with_bn=True, activation_fn=lambda: nn.ELU(True), affine=True):
+class PrintLayer(nn.Module):
+    def __init__(self):
+        super(PrintLayer, self).__init__()
+    
+    def forward(self, x):
+        # Do your print / debug stuff here
+        #print(torch.any(torch.isnan(x)))
+        return x
+
+def transConv(in_channels, out_channels, num_blocks, stride = 2, follow_with_bn=True, activation_fn=lambda: nn.ReLU(True), affine=True):
     _modules = []
     strides = [stride] + [1] * (num_blocks - 1) 
     out_padding=1
     for stride in strides:
         _modules.append(nn.ConvTranspose2d(in_channels, out_channels,3,stride=stride,padding=1,output_padding=out_padding))
+        _modules.append(PrintLayer())
         _modules.append(nn.InstanceNorm2d(out_channels, affine=affine))
+        _modules.append(PrintLayer())
         _modules.append(activation_fn())
+        _modules.append(PrintLayer())
         in_channels = out_channels
         out_padding = 0
     return nn.Sequential(*_modules)
@@ -340,6 +355,7 @@ class UpSampleBlock(nn.Module):
         self.norm = nn.InstanceNorm2d(out_channels)
     def forward(self, x, passthrough):
         out = self.upsampler(x)
+        
         out = torch.cat((out,self.norm(passthrough)), 1)
         return self.follow_up(out)
 
@@ -361,10 +377,10 @@ class Block(nn.Module):
             )
 
     def forward(self, x):
-        out = F.elu(self.bn1(self.conv1(x)))
+        out = F.relu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
         out += self.shortcut(x)
-        out = F.elu(out)
+        out = F.relu(out)
         return out
 
 
@@ -390,7 +406,6 @@ class decoder(nn.Module):
         #act = torch.sum(scale4*em.view(-1, 256, 1, 1), 1, keepdim=True)
         #th = torch.sigmoid(act)
         #scale4 = scale4*th
-
         upsample3 = self.uplayer4(scale4, encoder_out[-3])
         upsample2 = self.uplayer3(upsample3, encoder_out[-4])
         upsample1 = self.uplayer2(upsample2, encoder_out[-5])
