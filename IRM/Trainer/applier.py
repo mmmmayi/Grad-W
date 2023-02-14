@@ -428,7 +428,7 @@ class IRMApplier():
             audio, _  = soundfile.read(os.path.join(clean_path, num,file))
             clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             #feature = torch.load('/data_a11/mayi/project/SIP/IRM/exp/debug/feature.pt')
-            mask,feature = self.model(clean)
+            mask,feature = self.model(clean,'apply')
             acc = self.auxl(feature,target_spk,'acc',mask)
             accs += acc
             #continue

@@ -8,6 +8,7 @@ from tools.Resampler import librosa_resample
 import torch.nn.functional as F
 from random import choice
 
+
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
     def __call__(self, sample):
@@ -21,6 +22,9 @@ class ToTensor(object):
 class IRMDataset(Dataset):
     def __init__(self, path, spk,  batch_size, dur, path_sorted=None, sub=None, sampling_rate=16000, mode="train", max_size=100000, data='both'):
         super().__init__()
+        seed=0
+        random.seed(seed)
+        np.random.seed(seed)
         if mode is not 'quality':
             spk = open(spk,'r')
             spk = [line.rstrip() for line in spk]

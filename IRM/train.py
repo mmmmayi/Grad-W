@@ -40,6 +40,10 @@ configs = {
         "beta2": 0.9}}
 
 if __name__ == "__main__":
+    seed = 0
+    torch.manual_seed(seed)          
+    torch.cuda.manual_seed(seed)     
+    torch.cuda.manual_seed_all(seed)
     local_rank = int(os.environ["LOCAL_RANK"])
     gpu = int(configs['gpu'][local_rank])
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu)
