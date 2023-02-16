@@ -143,7 +143,7 @@ class IRMTrainer():
         target = target.reshape(B,1,T*F)
         weight = weight_.reshape(B,T*F).detach()
         output_class = torch.gather(output,1,target).squeeze()
-        ce = -torch.log(output_class)*weight
+        ce = -torch.log(output_class+1e-6)*weight
         ce = ce.reshape(-1)
         weight = weight.reshape(-1)
         idx_p = (weight==self.w_p).nonzero().squeeze()

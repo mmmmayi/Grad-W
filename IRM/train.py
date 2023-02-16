@@ -15,13 +15,13 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_twin_8s_lr0.003_w0.95_hn0.92_n0.001_s8_th0.05_L_in_all"
+PROJECT_DIR = "exp/transCov_twin_8s_lr0.003_w0.98_hn0.92_n0.1_s8_th0.05_L_in_all"
 
 ## Config
 configs = {
-    "w_p": 0.95,
+    "w_p": 0.98,
     "w_hn": 0.92,
-    "w_n": 0.001,
+    "w_n": 0.1,
     "num_layers": 3,      
     "scale":8,  
     "num_epochs": 50,
