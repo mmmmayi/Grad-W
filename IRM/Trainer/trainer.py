@@ -143,7 +143,7 @@ class IRMTrainer():
         target = target.reshape(B,1,T*F)
         weight = weight_.reshape(B,T*F).detach()
         output_class = torch.gather(output,1,target).squeeze()
-        ce = -torch.log(output_class+1e-6)*weight
+        ce = -torch.log(output_class+1e-6)
         ce = ce.reshape(-1)
         weight = weight.reshape(-1)
         idx_p = (weight==self.w_p).nonzero().squeeze()
@@ -152,7 +152,7 @@ class IRMTrainer():
         ce_p = torch.gather(ce,0,idx_p)
         ce_n = torch.gather(ce,0,idx_n)
         ce_hn = torch.gather(ce,0,idx_hn)
-        return torch.sum(ce_p)/torch.sum(weight), torch.sum(ce_n)/torch.sum(weight), torch.sum(ce_hn)/torch.sum(weight), weight_
+        return torch.sum(ce_p)/ce_p.numel(), torch.sum(ce_n)/ce_n.numel(), torch.sum(ce_hn)/ce_hn.numel(), weight_
 
     def recall(self, output, weight):
         output_ = 1-output

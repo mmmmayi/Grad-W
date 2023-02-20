@@ -451,22 +451,22 @@ class IRMApplier():
 
             if not os.path.exists(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2])):
                 os.makedirs(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2]))
-            mask_ = np.sort(mask.detach().cpu().squeeze().numpy(),axis=None).squeeze()
-            x = np.arange(len(mask_))
-            plt.plot(x, mask_, color='blue', label='predict')
-            plt.plot(x, np.sort(SaM.detach().cpu().squeeze().numpy(),axis=None).squeeze(), color='yellow', label='target')
-            plt.legend()
-            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sort.png')))
+            #mask_ = np.sort(mask.detach().cpu().squeeze().numpy(),axis=None).squeeze()
+            #x = np.arange(len(mask_))
+            #plt.plot(x, mask_, color='blue', label='predict')
+            #plt.plot(x, np.sort(SaM.detach().cpu().squeeze().numpy(),axis=None).squeeze(), color='yellow', label='target')
+            #plt.legend()
+            #plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sort.png')))
 
-            plt.close()
+            #plt.close()
             #continue
-            fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+            fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
             #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
 
-            librosa.display.specshow(feature.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+            #librosa.display.specshow(feature.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
-            img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-            librosa.display.specshow(SaM.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+            img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None)
+            #librosa.display.specshow(SaM.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
             fig.colorbar(img, ax=ax)
             #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
 

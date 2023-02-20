@@ -27,7 +27,7 @@ class BaseClass:
         self.current_iter = 0
         self.warm_up_iter = warm_up_epoch * epoch_iter
         self.warm_from_zero = warm_from_zero
-
+        self.epoch_iter = epoch_iter
     def get_multi_process_coeff(self):
         lr_coeff = 1.0 * self.scale_ratio
         if self.current_iter < self.warm_up_iter:
@@ -91,6 +91,25 @@ class ExponentialDecrease(BaseClass):
             math.log(self.final_lr / self.initial_lr))
         return current_lr
 
+class StepDecrease(BaseClass):
+
+    def __init__(self,
+                 optimizer,
+                 num_epochs,
+                 epoch_iter,
+                 initial_lr,
+                 final_lr,
+                 warm_up_epoch=6,
+                 scale_ratio=1.0,
+                 warm_from_zero=False):
+        super().__init__(optimizer, num_epochs, epoch_iter, initial_lr,
+                         final_lr, warm_up_epoch, scale_ratio, warm_from_zero)
+
+    def get_current_lr(self):
+        lr_coeff = self.get_multi_process_coeff()
+        current_lr = lr_coeff * self.initial_lr * pow(0.8,self.current_iter//(10*self.epoch_iter))
+        return current_lr
+
 def show_lr_curve(scheduler):
     import matplotlib.pyplot as plt
 
@@ -116,7 +135,7 @@ if __name__ == '__main__':
     warm_up_epoch = 5
     scale_ratio = 1
     warm_from_zero=True
-    scheduler = ExponentialDecrease(optimizer, num_epochs, epoch_iter,
+    scheduler = StepDecrease(optimizer, num_epochs, epoch_iter,
                                     initial_lr, final_lr, warm_up_epoch,
                                     scale_ratio, warm_from_zero)
 
