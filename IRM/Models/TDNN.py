@@ -217,29 +217,30 @@ class Speaker_resnet(nn.Module):
             quit()
         return start_point, end_point
 
-    def forward(self, x, targets=None, mode='feature', mask=None):
+    def forward(self, x, targets=None, mode='feature', mask=None, points=None):
         
-        if mode not in ['score','loss', 'acc']:
-            with torch.no_grad():
-                x = self.pre(x)
-                x = self.Spec(x)
-                frame_len = x.shape[-1]
-                if mode =='apply':
-                    if frame_len%8>0:
-                        pad_num = math.ceil(frame_len/8)*8-frame_len
-                        pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
-                        x = pad(x)
-                else:
-                    start, end = self._clip_point(frame_len)
-                    x = x[:,:,start:end]
-                x = (self.Mel_scale(x)+1e-6).log()
+        with torch.no_grad():
+            x = self.pre(x)
+            x = self.Spec(x)
+            frame_len = x.shape[-1]
+            if mode =='apply':
+                if frame_len%8>0:
+                    pad_num = math.ceil(frame_len/8)*8-frame_len
+                    pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
+                    x = pad(x)
+            elif mode =='score':
+                x = x[:,:,points[0]:points[1]]
+            else:
+                start, end = self._clip_point(frame_len)
+                x = x[:,:,start:end]
+            x = (self.Mel_scale(x)+1e-6).log()
         if mask is not None:
             x = x+(mask+1+1e-8).log()
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
         
-        feature = x
+        feature = x.requires_grad_()
         x = feature - torch.mean(feature, dim=-1, keepdim=True)
         #x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
         x = x.unsqueeze_(1)
@@ -268,7 +269,7 @@ class Speaker_resnet(nn.Module):
         if mode=='feature':
             return frame
         elif mode == 'encoder':
-            return [out1,out2,out3,out4,embed_a],feature
+            return [out1,out2,out3,out4,embed_a],feature,[start,end]
         elif mode == 'apply':
             return [out1,out2,out3,out4,embed_a],feature
         elif mode == 'reference':
@@ -277,7 +278,7 @@ class Speaker_resnet(nn.Module):
             score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
             if mode == 'score':
-                return result
+                return result,feature
             elif mode =='acc':
                  return acc(score.detach(), targets.detach())
             else:
@@ -443,6 +444,6 @@ class multi_TDNN(nn.Module):
         #print(next(self.speaker.parameters()).device)
             #print('input:{},speaker:{}'.format(input.device,i.device))
         
-        encoder_out,feature = self.speaker(input,mode=mode)
+        encoder_out,feature,points = self.speaker(input,mode=mode)
         mask = self.decoder(encoder_out)
-        return mask,feature
+        return mask,feature,points

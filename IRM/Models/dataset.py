@@ -7,7 +7,7 @@ import tools.utils as utils
 from tools.Resampler import librosa_resample
 import torch.nn.functional as F
 from random import choice
-
+from scipy import signal
 
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
@@ -51,6 +51,10 @@ class IRMDataset(Dataset):
         with open ('/data_a11/mayi/dataset/musan/file_list', 'r') as f:
             self.noise_list=f.readlines()
         self.noise_num= len (self.noise_list)
+        with open ('/data_a11/mayi/dataset/RIRS_NOISES/file_list', 'r') as f:
+            self.rirs_list=f.readlines()
+        self.rirs_num= len (self.rirs_list)
+
 
     def __len__(self):
         return len(self.batch_data)
@@ -86,9 +90,12 @@ class IRMDataset(Dataset):
             target_category = torch.tensor(int(self.labels[spk]))
             
             if self.mode in ['train','validation']:
-                noise = self.generate_noise(audio)
-                snr = random.randint(0,20)
-                input_tensor = self.mix_waveform(audio, noise, snr)
+                #noise = self.generate_noise(audio)
+                #snr = random.randint(0,20)
+                #input_tensor = self.mix_waveform(audio, noise, snr)
+                
+                input_tensor = self.augment(audio)
+                input_tensor = torch.FloatTensor(np.stack([input_tensor],axis=0))
                 clean_tensor = torch.FloatTensor(np.stack([audio],axis=0)) 
             else: 
                 input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
@@ -109,9 +116,44 @@ class IRMDataset(Dataset):
         if self.mode in ['train','validation']:
             return torch.stack(noisy_input), torch.stack(target_spk), torch.stack(clean_input), correct_spk
 
+    def augment(self,audio, aug_prob=0.6):
+        if aug_prob > random.random():
+            aug_type = random.randint(1, 2)
+            if aug_type == 1:
+                #add reverb
+                audio_len = audio.shape[0]
+                num = np.random.randint(0, self.rirs_num, size=1)[0]
+                rirs_path = self.rirs_list[num].strip('\n')
+                rir_audio, _  = soundfile.read(rirs_path)
+                rir_audio = rir_audio / np.sqrt(np.sum(rir_audio**2))
+                out_audio = signal.convolve(audio, rir_audio,
+                                            mode='full')[:audio_len]
+            else:
+                #add noise
+                noise, type = self.generate_noise(audio)
+                audio_len = audio.shape[0]
+                audio_db = 10 * np.log10(np.mean(audio**2) + 1e-4)
+                if 'noise' in type:
+                    snr_range = [0, 15]
+                elif 'speech' in type:
+                    snr_range = [10, 30]
+                elif 'music' in type:
+                    snr_range = [5, 15]
+                noise_snr = random.uniform(snr_range[0], snr_range[1])
+                noise_db = 10 * np.log10(np.mean(noise**2) + 1e-4)
+                noise_audio = np.sqrt(10**(
+                    (audio_db - noise_db - noise_snr) / 10)) * noise
+                out_audio = audio + noise_audio
+
+            out_audio = out_audio / (np.max(np.abs(out_audio)) + 1e-4)
+        else:
+            out_audio = audio
+        return out_audio
+
     def generate_noise(self, audio):
         num = np.random.randint(0, self.noise_num, size=1)[0]
         noise_path = self.noise_list[num].strip('\n')
+        type = noise_path.split('/')[5]
         noise, _  = soundfile.read(noise_path)
         len1 = len(audio)
         len2 = len(noise)
@@ -125,7 +167,8 @@ class IRMDataset(Dataset):
             noise_onset=np.random.randint(low=0, high =len2- len1 , size=1)[0]
             noise_offset =noise_onset +len1
             noise = noise[noise_onset: noise_offset]
-        return noise
+        return noise, type
+
     def mix_waveform(self,audio, noise, snr):
 
         audio = torch.FloatTensor(audio)

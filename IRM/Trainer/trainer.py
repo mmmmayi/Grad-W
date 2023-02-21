@@ -185,38 +185,10 @@ class IRMTrainer():
             Xb = Xb.reshape(B,W).cuda()
             clean = clean.reshape(B,W).cuda()
             target_spk = target_spk.reshape(B).cuda()
-            logits, feature = self.model(clean)
-            '''
-            if device==0:
-                for i in range(10):
-                    encoder_0 = torch.mean(encoder[0][i,:,:,:],0).squeeze()
-                    encoder_1 = torch.mean(encoder[1][i,:,:,:],0).squeeze()
-                    encoder_2 = torch.mean(encoder[2][i,:,:,:],0).squeeze()
-                    encoder_3 = torch.mean(encoder[3][i,:,:,:],0).squeeze()
-                    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
-                    #temp2 = self.vari_ReLU(yb,self.ratio,device)
-                    img = librosa.display.specshow(encoder_0.detach().cpu().squeeze().numpy(),x_axis=None)
-                    fig.colorbar(img, ax=ax)
-                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'0.png')
-                    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
-                    img = librosa.display.specshow(encoder_1.detach().cpu().squeeze().numpy(),x_axis=None)
-                    fig.colorbar(img, ax=ax)
-                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'1.png')
-                    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
-                    img = librosa.display.specshow(encoder_2.detach().cpu().squeeze().numpy(),x_axis=None)
-                    fig.colorbar(img, ax=ax)
-                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'2.png')
-                    fig, ax = plt.subplots(nrows=1, ncols=1, sharex=True)
-                    img = librosa.display.specshow(encoder_3.detach().cpu().squeeze().numpy(),x_axis=None)
-                    fig.colorbar(img, ax=ax)
-                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'3.png')
- 
+            logits, feature_n, points = self.model(Xb)
 
-            quit()
-            '''
-
-            feature = feature.detach().requires_grad_()
-            score = self.auxl(feature, target_spk, 'score')
+            #feature = feature.detach().requires_grad_()
+            score, feature = self.auxl(clean, target_spk, 'score',None,points)
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
@@ -228,20 +200,20 @@ class IRMTrainer():
             '''
             if device==0:
                 for i in range(10):
-                    mask_ = np.sort(yb[i,:,:].detach().cpu().squeeze().numpy(),axis=None).squeeze()
-                    x = np.arange(len(mask_))
-                    plt.plot(x, mask_, color='blue', label='predict')
-                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'sort.png')
+                    #mask_ = np.sort(yb[i,:,:].detach().cpu().squeeze().numpy(),axis=None).squeeze()
+                    #x = np.arange(len(mask_))
+                    #plt.plot(x, mask_, color='blue', label='predict')
+                    #plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'sort.png')
 
-                    plt.close()
+                    #plt.close()
  
                     temp = 0-SaM
                     #temp2 = self.vari_ReLU(yb,self.ratio,device) 
                     fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
-                    librosa.display.specshow(feature[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
-                    librosa.display.specshow(SaM[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+                    librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+                    librosa.display.specshow(feature[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
 #                    img = librosa.display.specshow(mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    img = librosa.display.specshow(weight[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+                    img = librosa.display.specshow(SaM[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
                     #print(weight[i,:,:])
                     fig.colorbar(img, ax=ax)
 
@@ -324,10 +296,9 @@ class IRMTrainer():
             Xb = Xb.reshape(B,W).cuda()
             clean = clean.reshape(B,W).cuda()
             target_spk = target_spk.squeeze().cuda()
-           
-            logits, feature = self.model(clean)
-            feature = feature.requires_grad_()
-            score = self.auxl(feature, target_spk, 'score')
+            logits, feature_n, points = self.model(Xb)
+
+            score, feature = self.auxl(clean, target_spk, 'score',None,points)
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
             max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
