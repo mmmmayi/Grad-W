@@ -227,9 +227,15 @@ class Speaker_resnet(nn.Module):
                 if frame_len%8>0:
                     pad_num = math.ceil(frame_len/8)*8-frame_len
                     pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
+                    start = 0
                     x = pad(x)
+                    end = x.shape[-1]
             elif mode =='score':
-                x = x[:,:,points[0]:points[1]]
+                if points[1] > x.shape[-1]:
+                    pad = torch.nn.ZeroPad2d((0,points[1]-x.shape[-1],0,0))
+                    x = pad(x)
+                else:
+                    x = x[:,:,points[0]:points[1]]
             else:
                 start, end = self._clip_point(frame_len)
                 x = x[:,:,start:end]
@@ -271,7 +277,7 @@ class Speaker_resnet(nn.Module):
         elif mode == 'encoder':
             return [out1,out2,out3,out4,embed_a],feature,[start,end]
         elif mode == 'apply':
-            return [out1,out2,out3,out4,embed_a],feature
+            return [out1,out2,out3,out4,embed_a],feature,[start,end]
         elif mode == 'reference':
             return embed_a
         elif mode in ['score','loss','acc']:

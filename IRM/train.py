@@ -66,7 +66,7 @@ if __name__ == "__main__":
         batch_size=1,
         shuffle=None,
         sampler=train_sampler,
-        num_workers=1)
+        num_workers=10)
        
     print('check dataset length:',len(train_irm_dataset))    
     # valid
