@@ -116,7 +116,7 @@ class IRMDataset(Dataset):
         if self.mode in ['train','validation']:
             return torch.stack(noisy_input), torch.stack(target_spk), torch.stack(clean_input), correct_spk
 
-    def augment(self,audio, aug_prob=0.6):
+    def augment(self,audio, aug_prob=0):
         if aug_prob > random.random():
             aug_type = random.randint(1, 2)
             if aug_type == 1:
@@ -237,9 +237,11 @@ def generate(path,mode):
     clean_data,clean_label = [],[]
     noisy_data,noisy_label = [],[]
     for i in path:
-        
+        idx=i.split('/')[0]
+        spk = i.split('/')[1].split('-')[0]
+        utt = i.split('/')[1]
         #if mode=='train':
-        noisy_data.append(os.path.join('/data_a11/mayi/dataset/voxceleb_asvtorch/VoxCeleb2/dev/acc',i))
+        noisy_data.append(os.path.join('/data_a11/mayi/dataset/voxceleb_asvtorch/VoxCeleb2/dev/acc_new',idx,spk,utt))
         #else:
             #noisy_data.append(os.path.join('/data_a11/mayi/dataset/IRM/mix',num,i))
   

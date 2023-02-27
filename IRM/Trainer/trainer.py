@@ -227,7 +227,7 @@ class IRMTrainer():
             
             tpr, tnr = self.recall(logits,weight)    
             #mse = self.mse(mask, SaM.float())
-            train_loss = ce_p+ce_b+ce_n
+            train_loss = 0.5*ce_p+0.25*ce_b+0.25*ce_n
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(target_spk, '/data_a11/mayi/project/SIP/IRM/exp/debug/spk.pt')
                 torch.save(yb, '/data_a11/mayi/project/SIP/IRM/exp/debug/yb.pt')
