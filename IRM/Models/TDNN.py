@@ -443,13 +443,13 @@ class multi_TDNN(nn.Module):
                 #print('param',param)
             p.requires_grad = False
         self.speaker.eval()
-    def forward(self,input,mode='encoder'):
+    def forward(self,input,mode='encoder',target=None):
         self.speaker.eval()
         #for name, param in self.speaker.parameters():
             #print(name)
         #print(next(self.speaker.parameters()).device)
             #print('input:{},speaker:{}'.format(input.device,i.device))
         
-        encoder_out,feature,points = self.speaker(input,mode=mode)
+        encoder_out,feature,points= self.speaker(input,mode=mode,targets=target)
         mask = self.decoder(encoder_out)
         return mask,feature,points

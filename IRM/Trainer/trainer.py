@@ -196,6 +196,7 @@ class IRMTrainer():
             SaM =SaM.long()
             #SaM = self.vari_sigmoid(yb,50)
             ce_p, ce_b, ce_n, weight = self.ce(logits,SaM,yb)
+            score, feature = self.auxl(Xb, target_spk, 'score',logits,points)
             #print(self.bce(logits,SaM))
             '''
             if device==0:
@@ -227,7 +228,7 @@ class IRMTrainer():
             
             tpr, tnr = self.recall(logits,weight)    
             #mse = self.mse(mask, SaM.float())
-            train_loss = 0.5*ce_p+0.25*ce_b+0.25*ce_n
+            train_loss = 0.5*ce_p+0.25*ce_b+0.25*ce_n-torch.mean(score)*0.1
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(target_spk, '/data_a11/mayi/project/SIP/IRM/exp/debug/spk.pt')
                 torch.save(yb, '/data_a11/mayi/project/SIP/IRM/exp/debug/yb.pt')

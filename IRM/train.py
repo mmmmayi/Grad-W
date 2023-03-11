@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_twin_30s_lr0.0009_th0.05_p0.5_aug_all"
+PROJECT_DIR = "exp/transCov_twin_2s_lr0.0009_th0.05_p0.5_QA_all"
 
 ## Config
 configs = {
@@ -26,9 +26,9 @@ configs = {
     "scale":8,  
     "num_epochs": 50,
     "th": 0.05,
-    "batchsize": 4,
+    "batchsize": 64,
     "data": 'noisy',
-    "dur": 30,
+    "dur": 2,
     "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         batch_size=1,
         shuffle=None,
         sampler=train_sampler,
-        num_workers=10)
+        num_workers=16)
        
     print('check dataset length:',len(train_irm_dataset))    
     # valid
