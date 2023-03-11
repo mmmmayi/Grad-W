@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_twin_2s_lr0.0009_th0.05_p0.5_QA_all"
+PROJECT_DIR = "exp/transCov_twin_2s_lr0.001_cos_all"
 
 ## Config
 configs = {
@@ -34,8 +34,8 @@ configs = {
     "ratio":0.1,
     "gpu":[0],
     "optimizer": {
-        "initial_lr": 0.0009,
-        "final_lr":0.0000009,
+        "initial_lr": 0.001,
+        "final_lr":0.0000001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     #optimizer = torch.optim.Adadelta(nnet.parameters(), lr=configs["optimizer"]["lr"])
     BCE_loss = nn.BCELoss()
     MSE_loss = nn.MSELoss()
-    COS_loss = nn.CosineEmbeddingLoss()
+    COS_loss = nn.CosineSimilarity(dim=1)
     CE_loss = nn.CrossEntropyLoss()
     #loss_fn = nn.L1Loss(reduction='sum')
     #scheduler = MultiStepLR(optimizer=optimizer, milestones=[4, 8, 12, 16], gamma=0.5)
@@ -146,6 +146,7 @@ if __name__ == "__main__":
             if epoch%2==0:
                 state_dict = nnet.state_dict()
                 torch.save(state_dict,f"{PROJECT_DIR}/models/model_{epoch}.pt")
+                torch.save(optimizer.state_dict(),f"{PROJECT_DIR}/models/opt_{epoch}.pt")
         irm_trainer.set_models_to_eval_mode()
         irm_trainer.validation_epoch(epoch, configs["weight"], local_rank)
         

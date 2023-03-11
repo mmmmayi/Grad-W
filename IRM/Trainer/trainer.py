@@ -172,7 +172,7 @@ class IRMTrainer():
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
         relu = nn.ReLU()
-        running_p, running_b, running_n, running_tpr, running_tnr, running_mse, running_tht = 0,0,0,0,0,0,0
+        running_cos, running_b, running_n, running_tpr, running_tnr, running_mse, running_tht = 0,0,0,0,0,0,0
         i_batch,diff_batch = 0,0
         self.train_dataloader.dataset.shuffle(epoch)
         for sample_batched in self.train_dataloader:
@@ -191,13 +191,6 @@ class IRMTrainer():
             score, feature = self.auxl(clean, target_spk, 'score',None,points)
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
-            SaM =SaM.long()
-            #SaM = self.vari_sigmoid(yb,50)
-            ce_p, ce_b, ce_n, weight = self.ce(logits,SaM,yb)
-            score, feature = self.auxl(Xb, target_spk, 'score',logits,points)
-            #print(self.bce(logits,SaM))
             '''
             if device==0:
                 for i in range(10):
@@ -226,9 +219,8 @@ class IRMTrainer():
             '''
             #inverse_mask = 1-mask
             
-            tpr, tnr = self.recall(logits,weight)    
             #mse = self.mse(mask, SaM.float())
-            train_loss = 0.5*ce_p+0.25*ce_b+0.25*ce_n-torch.mean(score)*0.1
+            train_loss = torch.mean(1-self.cos(logits,yb))
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(target_spk, '/data_a11/mayi/project/SIP/IRM/exp/debug/spk.pt')
                 torch.save(yb, '/data_a11/mayi/project/SIP/IRM/exp/debug/yb.pt')
@@ -236,14 +228,7 @@ class IRMTrainer():
                 state_dict = self.model.state_dict()
                 torch.save(state_dict,'/data_a11/mayi/project/SIP/IRM/exp/debug/model.pt')
                 quit()
-            running_p += ce_p.item()
-            running_b += ce_b.item()
-            running_n += ce_n.item()
-            #running_mse += mse.item()
-            #running_preserve += preserve_score.item()
-            #running_remove += remove_score.item()
-            running_tpr += tpr
-            running_tnr += tnr
+            running_cos += train_loss
             i_batch += 1
 
             self.optimizer.zero_grad()
@@ -264,18 +249,8 @@ class IRMTrainer():
             #if epoch%10 ==0:
                 #torch.save(self.model, f"{self.PROJECT_DIR}/models/model_{epoch}.pt")
         if device ==0:
-            ave_p = running_p / i_batch
-            ave_b = running_b / i_batch
-            ave_n = running_n / i_batch
-            #ave_mse = running_mse / i_batch
-            ave_tnr_loss = running_tnr / i_batch
-            ave_tpr_loss = running_tpr / i_batch
-            self.writer.add_scalar('Train/p', ave_p, epoch)
-            self.writer.add_scalar('Train/b', ave_b, epoch)
-            self.writer.add_scalar('Train/n', ave_n, epoch)
-            #self.writer.add_scalar('Train/mse', ave_mse, epoch)
-            self.writer.add_scalar('Train/tnr', ave_tnr_loss, epoch)
-            self.writer.add_scalar('Train/tpr', ave_tpr_loss, epoch)
+            ave_cos_loss = running_cos / i_batch
+            self.writer.add_scalar('Train/tpr', ave_cos_loss, epoch)
             self.logger.info("Epoch:{}".format(epoch)) 
             self.logger.info("*" * 50)
     
@@ -286,7 +261,7 @@ class IRMTrainer():
 
     def validation_epoch(self, epoch, weight, device):
         start_time = time.time()
-        running_p, running_b, running_n, running_mse_loss, running_diff_loss, running_tnr_loss, running_tpr_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        running_cos, running_b, running_n, running_mse_loss, running_diff_loss, running_tnr_loss, running_tpr_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         i_batch,diff_batch = 0,0
         relu = nn.ReLU()
         
@@ -302,50 +277,14 @@ class IRMTrainer():
             score, feature = self.auxl(clean, target_spk, 'score',None,points)
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            max = torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-            SaM = torch.where(yb>self.config["th"]*max,torch.tensor(1, dtype=yb.dtype).cuda(),torch.tensor(0, dtype=yb.dtype).cuda())
-            SaM =SaM.long()
-
-                #SaM_frame = self.vari_sigmoid(yb_frame,50)
-            #frame_len = mel_c.shape[-1]
-            #if frame_len%8>0:
-                #pad_num = math.ceil(frame_len/8)*8-frame_len
-                #pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
-                #mel_c_ = pad(mel_c)
-            
-            #inverse_mask = 1-mask
-            ce_p, ce_b, ce_n,weight = self.ce(logits,SaM,yb)
-            #mse = self.mse(mask, SaM.float())
-            tpr,tnr = self.recall(logits,weight)
-            #enh_loss = torch.mean(self.vari_ReLU(0-yb,self.ratio,device)*torch.pow(mask-SaM,2)+self.vari_ReLU(yb,self.ratio,device)*torch.pow(SaM-mask,2))
-            #logits = self.auxl(feature, target_spk, 'loss', mask)
-            #preserve_score = self.cw_loss(logits, target_spk, device, True)
-            #logits = self.auxl(feature, target_spk, 'loss', inverse_mask)
-            #remove_score = self.cw_loss(logits,target_spk,device, False)
-            running_p += ce_p.item()
-            #running_mse_loss += mse.item()
-            running_b += ce_b.item()
-            running_n += ce_n.item()
-            running_tnr_loss += tnr
-            running_tpr_loss += tpr
+            running_cos += torch.mean(1-self.cos(logits,yb))
             #running_remove_loss += remove_score.item()
             #running_remove_loss += remove_score.item()
             i_batch += 1
         if device==0:    
-            ave_p = running_p / i_batch
-            ave_b = running_b / i_batch
-            ave_n = running_n / i_batch
-            #ave_mse = running_mse_loss / i_batch
-            ave_tnr_loss = running_tnr_loss / i_batch
-            ave_tpr_loss = running_tpr_loss / i_batch
+            ave_cos_loss = running_cos / i_batch
             end_time = time.time()
-            self.writer.add_scalar('Validation/p', ave_p, epoch)
-            self.writer.add_scalar('Validation/b', ave_b, epoch)
-            #self.writer.add_scalar('Validation/mse', ave_mse, epoch)
-            self.writer.add_scalar('Validation/n', ave_n, epoch)
-            self.writer.add_scalar('Validation/tpr', ave_tpr_loss, epoch)
-            self.writer.add_scalar('Validation/tnr', ave_tnr_loss, epoch)
-            print('tpr:{}, tnr:{}'.format(ave_tpr_loss,ave_tnr_loss))
+            self.writer.add_scalar('Validation/cos', ave_cos_loss, epoch)
             self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
             self.logger.info("Epoch:{}".format(epoch))
 
