@@ -172,7 +172,7 @@ class IRMTrainer():
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
         relu = nn.ReLU()
-        running_cos, running_b, running_n, running_tpr, running_tnr, running_mse, running_tht = 0,0,0,0,0,0,0
+        running_cos, running_score, running_n, running_tpr, running_tnr, running_mse, running_tht = 0,0,0,0,0,0,0
         i_batch,diff_batch = 0,0
         self.train_dataloader.dataset.shuffle(epoch)
         for sample_batched in self.train_dataloader:
@@ -191,6 +191,7 @@ class IRMTrainer():
             score, feature = self.auxl(clean, target_spk, 'score',None,points)
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
+            score,feature = self.auxl(Xb, target_spk, 'score', logits, points)
             '''
             if device==0:
                 for i in range(10):
@@ -220,7 +221,8 @@ class IRMTrainer():
             #inverse_mask = 1-mask
             
             #mse = self.mse(mask, SaM.float())
-            train_loss = torch.mean(1-self.cos(logits,yb))
+            train_loss = torch.mean(1-self.cos(logits,yb))-torch.mean(score)
+
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(target_spk, '/data_a11/mayi/project/SIP/IRM/exp/debug/spk.pt')
                 torch.save(yb, '/data_a11/mayi/project/SIP/IRM/exp/debug/yb.pt')
@@ -228,7 +230,8 @@ class IRMTrainer():
                 state_dict = self.model.state_dict()
                 torch.save(state_dict,'/data_a11/mayi/project/SIP/IRM/exp/debug/model.pt')
                 quit()
-            running_cos += train_loss
+            running_cos += torch.mean(1-self.cos(logits,yb)).item()
+            running_score += (0-torch.mean(score)).item()
             i_batch += 1
 
             self.optimizer.zero_grad()
@@ -250,7 +253,10 @@ class IRMTrainer():
                 #torch.save(self.model, f"{self.PROJECT_DIR}/models/model_{epoch}.pt")
         if device ==0:
             ave_cos_loss = running_cos / i_batch
-            self.writer.add_scalar('Train/tpr', ave_cos_loss, epoch)
+            ave_score_loss = running_score / i_batch
+            self.writer.add_scalar('Train/cos', ave_cos_loss, epoch)
+            self.writer.add_scalar('Train/score', ave_score_loss, epoch)
+
             self.logger.info("Epoch:{}".format(epoch)) 
             self.logger.info("*" * 50)
     
@@ -261,7 +267,7 @@ class IRMTrainer():
 
     def validation_epoch(self, epoch, weight, device):
         start_time = time.time()
-        running_cos, running_b, running_n, running_mse_loss, running_diff_loss, running_tnr_loss, running_tpr_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        running_cos, running_score, running_n, running_mse_loss, running_diff_loss, running_tnr_loss, running_tpr_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         i_batch,diff_batch = 0,0
         relu = nn.ReLU()
         
@@ -277,14 +283,16 @@ class IRMTrainer():
             score, feature = self.auxl(clean, target_spk, 'score',None,points)
             self.auxl.zero_grad()
             yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            running_cos += torch.mean(1-self.cos(logits,yb))
-            #running_remove_loss += remove_score.item()
-            #running_remove_loss += remove_score.item()
+            score,feature = self.auxl(Xb, target_spk, 'score', logits, points)
+            running_cos += torch.mean(1-self.cos(logits,yb)).item()
+            running_score += (0-torch.mean(score)).item()
             i_batch += 1
         if device==0:    
             ave_cos_loss = running_cos / i_batch
+            ave_score_loss = running_score / i_batch
             end_time = time.time()
             self.writer.add_scalar('Validation/cos', ave_cos_loss, epoch)
+            self.writer.add_scalar('Validation/score', ave_score_loss, epoch)
             self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
             self.logger.info("Epoch:{}".format(epoch))
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o transCov_twin_2s_lr0.001_cos_all.out
+#SBATCH -o transCov_twin_2s_lr0.001_cos_QA_relu.out
 #SBATCH --gres=gpu:1
 #SBATCH -w ttnusa11
 #SBATCH --cpus-per-task=16
