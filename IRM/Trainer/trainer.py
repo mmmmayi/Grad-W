@@ -208,7 +208,7 @@ class IRMTrainer():
             #feature = feature.detach().requires_grad_()
             '''
             if device==0:
-                for i in range(10):
+                for i in range(4):
                     #mask_ = np.sort(yb[i,:,:].detach().cpu().squeeze().numpy(),axis=None).squeeze()
                     #x = np.arange(len(mask_))
                     #plt.plot(x, mask_, color='blue', label='predict')
@@ -217,11 +217,13 @@ class IRMTrainer():
                     #plt.close()
  
                     #temp2 = self.vari_ReLU(yb,self.ratio,device) 
-                    fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+                    fig, ax = plt.subplots(nrows=4, ncols=1, sharex=True)
                     librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
                     librosa.display.specshow(feature[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
 #                    img = librosa.display.specshow(mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    img = librosa.display.specshow(target_mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+                    img = librosa.display.specshow(logits[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+                    librosa.display.specshow(target_mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[3])
+
                     #print(weight[i,:,:])
                     fig.colorbar(img, ax=ax)
 

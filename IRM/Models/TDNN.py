@@ -241,7 +241,7 @@ class Speaker_resnet(nn.Module):
                 x = x[:,:,start:end]
             x = (self.Mel_scale(x)+1e-6).log()
         if mask is not None:
-            x = x+(mask+1e-6).log()
+            x = x+(mask+0.5).log()
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
@@ -419,7 +419,7 @@ class decoder(nn.Module):
         #logits = torch.cat((-saliency_chans/self.scale, saliency_chans/self.scale),1)
         #a = torch.abs(saliency_chans[:,0,:,:])
         #b = torch.abs(saliency_chans[:,1,:,:])
-        return self.relu(saliency_chans).squeeze()
+        return self.sig(saliency_chans).squeeze()
         #return self.sig(torch.pow(saliency_chans,1)).squeeze(), logits
 
 class multi_TDNN(nn.Module):
