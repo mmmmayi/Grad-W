@@ -241,7 +241,7 @@ class Speaker_resnet(nn.Module):
                 x = x[:,:,start:end]
             x = (self.Mel_scale(x)+1e-6).log()
         if mask is not None:
-            x = x+(mask+0.5).log()
+            x = x+(mask+2).log()
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
@@ -398,7 +398,7 @@ class decoder(nn.Module):
         self.uplayer2 = UpSampleBlock(in_channels=64,out_channels=32,passthrough_channels=32,num_blocks=num_blocks[-3])
         self.saliency_chans = nn.Conv2d(32,1,kernel_size=1,bias=False)
         self.sig = nn.Sigmoid()
-        self.relu = nn.ReLU()
+        self.tanh = nn.Tanh()
         self.scale = scale
     def vari_sigmoid(self,x,a):
         return 1/(1+(-a*x).exp())
@@ -419,7 +419,7 @@ class decoder(nn.Module):
         #logits = torch.cat((-saliency_chans/self.scale, saliency_chans/self.scale),1)
         #a = torch.abs(saliency_chans[:,0,:,:])
         #b = torch.abs(saliency_chans[:,1,:,:])
-        return self.sig(saliency_chans).squeeze()
+        return self.tanh(saliency_chans).squeeze()
         #return self.sig(torch.pow(saliency_chans,1)).squeeze(), logits
 
 class multi_TDNN(nn.Module):
