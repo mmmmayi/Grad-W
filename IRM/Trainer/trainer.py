@@ -218,11 +218,14 @@ class IRMTrainer():
  
                     #temp2 = self.vari_ReLU(yb,self.ratio,device) 
                     fig, ax = plt.subplots(nrows=4, ncols=1, sharex=True)
-                    librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+                    max=torch.max(feature[i,:,:])
+                    min = torch.min(feature[i,:,:]) 
+                    print('max',torch.max((logits[i,:,:])))
+                    librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0],vmax=max,vmin=min)
                     librosa.display.specshow(feature[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
 #                    img = librosa.display.specshow(mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    img = librosa.display.specshow(logits[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    librosa.display.specshow(target_mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[3])
+                    img=librosa.display.specshow((logits[i,:,:]+0.5).log().detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+                    librosa.display.specshow((feature[i,:,:]-feature_n[i,:,:]).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[3])
 
                     #print(weight[i,:,:])
                     fig.colorbar(img, ax=ax)
@@ -237,6 +240,8 @@ class IRMTrainer():
             #mse = self.mse(mask, SaM.float())
             test_emb, feature = self.auxl(test,None,'score',logits,points)
             loss_drct = self.cos_emb(test_emb,sim_center,torch.tensor([1]*test_emb.shape[0]).cuda())+self.cos_emb(test_emb,dissim_center,torch.tensor([-1]*test_emb.shape[0]).cuda())
+            logits = logits.reshape(logits.shape[0],-1)
+            target_mask = target_mask.reshape(target_mask.shape[0],-1)
             train_loss = self.weight*torch.mean(1-self.cos(logits,target_mask))+loss_drct
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(center, '/data_a11/mayi/project/SIP/IRM/exp/debug/center.pt')
@@ -301,6 +306,8 @@ class IRMTrainer():
             target_mask,sim_center,dissim_center = self.generate_mask(embed_a,test_emb,feature)
             test_emb, feature = self.auxl(test,None,'score',logits,points)
             loss_drct = self.cos_emb(test_emb,sim_center,torch.tensor([1]*test_emb.shape[0]).cuda())+self.cos_emb(test_emb,dissim_center,torch.tensor([-1]*test_emb.shape[0]).cuda())
+            logits = logits.reshape(logits.shape[0],-1)
+            target_mask = target_mask.reshape(logits.shape[0],-1)
 
             running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
             running_score += loss_drct.item()

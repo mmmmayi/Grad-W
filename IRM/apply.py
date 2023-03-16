@@ -3,8 +3,8 @@ from Models.dataset import IRMDataset
 from Trainer.applier import IRMApplier
 
 
-PROJECT_DIR = "exp/transCov_twin_2s_lr0.001_cos10_QA_relu_proty/wav_50"
-MODEL_PATH = "exp/transCov_twin_2s_lr0.001_cos10_QA_relu_proty/models/model_50.pt"
+PROJECT_DIR = "exp/transCov_twin_2s_lr0.001_cos1000_QA_sig_proty/wav_6"
+MODEL_PATH = "exp/transCov_twin_2s_lr0.001_cos1000_QA_sig_proty/models/model_6.pt"
 mode = 'quality'
 
 if __name__ == "__main__":
