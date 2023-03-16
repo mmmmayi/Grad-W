@@ -15,27 +15,26 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_twin_2s_lr0.001_cos_QA_relu"
+PROJECT_DIR = "exp/transCov_twin_2s_lr0.001_cos1000_QA_relu_proty"
 
 ## Config
 configs = {
-    "w_p": 1,
+    "weight": 1000,
     "w_hn": 0.95,
     "w_n": 0.01,
-    "num_layers": 3,      
     "scale":8,  
     "num_epochs": 50,
     "th": 0.05,
     "batchsize": 32,
-    "data": 'noisy',
+    "center_num": '4',
+    "test_num":'4',
     "dur": 2,
-    "weight": 1000,
     "resume_epoch":None,
     "ratio":0.1,
     "gpu":[0],
     "optimizer": {
         "initial_lr": 0.001,
-        "final_lr":0.0000001,
+        "final_lr":0.001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
@@ -58,8 +57,7 @@ if __name__ == "__main__":
         path_sorted = None,
         sub=1,
         spk="../lst/train_spk.lst",
-        batch_size=configs["batchsize"], dur=configs["dur"],
-        sampling_rate=16000, mode="train", max_size=200000, data=configs["data"])
+        batch_size=configs["batchsize"], dur=configs["dur"],mode="train",center_num=configs["center_num"], test_num=configs["test_num"])
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_irm_dataset)
     train_loader = DataLoader(
         dataset=train_irm_dataset,
@@ -75,8 +73,7 @@ if __name__ == "__main__":
         path_sorted = None,
         sub=1,
         spk="../lst/val_spk.lst",
-        batch_size=2,dur=configs["dur"],
-        sampling_rate=16000, mode="validation", max_size=100000, data=configs["data"])
+        batch_size=2,dur=configs["dur"], mode="validation",center_num=configs["center_num"], test_num=configs["test_num"])
     valid_loader = DataLoader(
         dataset=valid_irm_dataset,
         batch_size=1,
@@ -133,8 +130,8 @@ if __name__ == "__main__":
         config=configs,
         project_dir=PROJECT_DIR,
         model=nnet_ddp, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,CE_loss], dur = configs["dur"],
-        train_dl=train_loader, validation_dl=valid_loader, mode=configs["data"],ratio=configs["ratio"],
-        local_rank=local_rank, w_p=configs["w_p"], w_n=configs["w_n"],w_hn=configs["w_hn"])
+        train_dl=train_loader, validation_dl=valid_loader, ratio=configs["ratio"],
+        local_rank=local_rank, w_p=configs["weight"], w_n=configs["w_n"],w_hn=configs["w_hn"])
     device = torch.device("cuda")
     dist.barrier()
     #irm_trainer._get_global_mean_variance()

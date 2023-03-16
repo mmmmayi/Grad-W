@@ -230,18 +230,18 @@ class Speaker_resnet(nn.Module):
                     start = 0
                     x = pad(x)
                     end = x.shape[-1]
-            elif mode =='score':
-                if points[1] > x.shape[-1]:
-                    pad = torch.nn.ZeroPad2d((0,points[1]-x.shape[-1],0,0))
-                    x = pad(x)
-                else:
-                    x = x[:,:,points[0]:points[1]]
+            elif mode =='reference':
+                x = x
             else:
-                start, end = self._clip_point(frame_len)
+                if points is None:
+                    start, end = self._clip_point(frame_len)
+                else: 
+                    start = points[0]
+                    end = points[1]
                 x = x[:,:,start:end]
             x = (self.Mel_scale(x)+1e-6).log()
         if mask is not None:
-            x = x+(mask+1e-8).log()
+            x = x+(mask+1e-6).log()
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
@@ -272,20 +272,18 @@ class Speaker_resnet(nn.Module):
         else:
             return x, embed_a
         '''
-        if mode=='feature':
-            return frame
+        if mode=='score':
+            return embed_a, feature
         elif mode == 'encoder':
             return [out1,out2,out3,out4,embed_a],feature,[start,end]
         elif mode == 'apply':
             return [out1,out2,out3,out4,embed_a],feature,[start,end]
         elif mode == 'reference':
             return embed_a
-        elif mode in ['score','loss','acc']:
+        elif mode in ['loss','acc']:
             score = self.projection(embed_a, targets)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
-            if mode == 'score':
-                return result,feature
-            elif mode =='acc':
+            if mode =='acc':
                  return acc(score.detach(), targets.detach())
             else:
                 return score

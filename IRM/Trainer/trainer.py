@@ -19,11 +19,11 @@ class IRMTrainer():
     def __init__(self,
             config, project_dir,
             model, optimizer, loss_fn, dur,
-            train_dl, validation_dl, mode, ratio, 
+            train_dl, validation_dl,  ratio, 
             local_rank,w_p,w_n,w_hn):
         # Init device
         self.config = config
-        self.w_p = w_p
+        self.weight = w_p
         self.w_n = w_n
         self.w_hn = w_hn
         # Dataloaders
@@ -34,12 +34,10 @@ class IRMTrainer():
         self.optimizer = optimizer
         self.ratio = ratio
         self.cos = loss_fn[0]
-        self.mse = loss_fn[1]
-        self.bce = loss_fn[2]
+        self.cos_emb = nn.CosineEmbeddingLoss()
         self.last_loss = float('inf')
         self.time = 0
         self.model = model
-        self.mode = mode
         self.dur = dur
         # Init project dir
         self.PROJECT_DIR = project_dir
@@ -170,28 +168,44 @@ class IRMTrainer():
         tnr = len(np.intersect1d(n_idx.detach().cpu(),f_idx.detach().cpu()))/f_idx.numel()
         return tpr, tnr
 
+    def generate_mask(self,embed_a,test_emb,feature):
+        num_center = embed_a.shape[0]
+        c1 = torch.mean(embed_a[:int(num_center/2),:],dim=0).unsqueeze(0).detach()
+        c2 = torch.mean(embed_a[int(num_center/2):,:],dim=0).unsqueeze(0).detach()
+        test_num = int(test_emb.shape[0]/2)
+        c1 = c1.repeat(test_num,1)
+        c2 = c2.repeat(test_num,1)
+        sim_center = torch.cat((c1,c2),dim=0)
+        dissim_center = torch.cat((c2,c1),dim=0)
+
+        loss = self.cos_emb(test_emb,sim_center,torch.tensor([1]*test_emb.shape[0]).cuda())+self.cos_emb(test_emb,dissim_center,torch.tensor([-1]*test_emb.shape[0]).cuda())
+        mask = torch.autograd.grad(loss, feature, grad_outputs=torch.ones_like(loss), retain_graph=False)[0]
+        return 0-mask,sim_center,dissim_center
+
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
         relu = nn.ReLU()
         running_cos, running_score, running_n, running_tpr, running_tnr, running_mse, running_tht = 0,0,0,0,0,0,0
         i_batch,diff_batch = 0,0
+        
         self.train_dataloader.dataset.shuffle(epoch)
         for sample_batched in self.train_dataloader:
             cur_iter = (epoch - 1) * loader_size + i_batch
             scheduler.step(cur_iter)
             # Load data from trainloader
-            Xb, target_spk, clean, correct_spk  = sample_batched
+            center, test = sample_batched
             #print(Xb.device)
-            _, B, _, W = Xb.shape
-            Xb = Xb.reshape(B,W).cuda()
-            clean = clean.reshape(B,W).cuda()
-            target_spk = target_spk.reshape(B).cuda()
-            logits, feature_n, points = self.model(Xb)
+            _, num_center, _, W = center.shape
+            center = center.reshape(num_center,W).cuda()
+            _, num_test, _, W = test.shape
+            test = test.reshape(num_test,W).cuda()
+            
+            logits, feature_n, points = self.model(test)
+            embed_a = self.auxl(center,mode='reference')
+            test_emb, feature = self.auxl(test,None,'score',None,points)
+            self.auxl.zero_grad()
+            target_mask,sim_center,dissim_center = self.generate_mask(embed_a,test_emb,feature)
 
             #feature = feature.detach().requires_grad_()
-            score, feature = self.auxl(clean, target_spk, 'score',None,points)
-            self.auxl.zero_grad()
-            yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            score,feature = self.auxl(Xb, target_spk, 'score', logits, points)
             '''
             if device==0:
                 for i in range(10):
@@ -202,36 +216,34 @@ class IRMTrainer():
 
                     #plt.close()
  
-                    temp = 0-SaM
                     #temp2 = self.vari_ReLU(yb,self.ratio,device) 
                     fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
                     librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
                     librosa.display.specshow(feature[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
 #                    img = librosa.display.specshow(mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    img = librosa.display.specshow(SaM[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+                    img = librosa.display.specshow(target_mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
                     #print(weight[i,:,:])
                     fig.colorbar(img, ax=ax)
 
                     #img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
                     plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'varied.png')
                     plt.close()
-           
-            quit() 
+                quit() 
             '''
             #inverse_mask = 1-mask
             
             #mse = self.mse(mask, SaM.float())
-            train_loss = torch.mean(1-self.cos(logits,yb))-torch.mean(score)
-
+            test_emb, feature = self.auxl(test,None,'score',logits,points)
+            loss_drct = self.cos_emb(test_emb,sim_center,torch.tensor([1]*test_emb.shape[0]).cuda())+self.cos_emb(test_emb,dissim_center,torch.tensor([-1]*test_emb.shape[0]).cuda())
+            train_loss = self.weight*torch.mean(1-self.cos(logits,target_mask))+loss_drct
             if torch.isnan(train_loss) or torch.isinf(train_loss):
-                torch.save(target_spk, '/data_a11/mayi/project/SIP/IRM/exp/debug/spk.pt')
-                torch.save(yb, '/data_a11/mayi/project/SIP/IRM/exp/debug/yb.pt')
-                torch.save(feature,'/data_a11/mayi/project/SIP/IRM/exp/debug/feature.pt')
+                torch.save(center, '/data_a11/mayi/project/SIP/IRM/exp/debug/center.pt')
+                torch.save(test,'/data_a11/mayi/project/SIP/IRM/exp/debug/test.pt')
                 state_dict = self.model.state_dict()
                 torch.save(state_dict,'/data_a11/mayi/project/SIP/IRM/exp/debug/model.pt')
                 quit()
-            running_cos += torch.mean(1-self.cos(logits,yb)).item()
-            running_score += (0-torch.mean(score)).item()
+            running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
+            running_score += loss_drct.item()
             i_batch += 1
 
             self.optimizer.zero_grad()
@@ -273,19 +285,23 @@ class IRMTrainer():
         
         
         for sample_batched in tqdm(self.validation_dataloader):
-            Xb, target_spk, clean, correct_spk = sample_batched
-            _, B, _, W = Xb.shape
-            Xb = Xb.reshape(B,W).cuda()
-            clean = clean.reshape(B,W).cuda()
-            target_spk = target_spk.squeeze().cuda()
-            logits, feature_n, points = self.model(Xb)
+            center, test = sample_batched
+            _, num_center, _, W = center.shape
+            center = center.reshape(num_center,W).cuda()
+            _, num_test, _, W = test.shape
+            test = test.reshape(num_test,W).cuda()
 
-            score, feature = self.auxl(clean, target_spk, 'score',None,points)
+            logits, feature_n, points = self.model(test)
+            embed_a = self.auxl(center,mode='reference')
+            test_emb, feature = self.auxl(test,None,'score',None,points)
+
             self.auxl.zero_grad()
-            yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), retain_graph=False)[0]
-            score,feature = self.auxl(Xb, target_spk, 'score', logits, points)
-            running_cos += torch.mean(1-self.cos(logits,yb)).item()
-            running_score += (0-torch.mean(score)).item()
+            target_mask,sim_center,dissim_center = self.generate_mask(embed_a,test_emb,feature)
+            test_emb, feature = self.auxl(test,None,'score',logits,points)
+            loss_drct = self.cos_emb(test_emb,sim_center,torch.tensor([1]*test_emb.shape[0]).cuda())+self.cos_emb(test_emb,dissim_center,torch.tensor([-1]*test_emb.shape[0]).cuda())
+
+            running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
+            running_score += loss_drct.item()
             i_batch += 1
         if device==0:    
             ave_cos_loss = running_cos / i_batch

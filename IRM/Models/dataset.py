@@ -20,9 +20,11 @@ class ToTensor(object):
 
 
 class IRMDataset(Dataset):
-    def __init__(self, path, spk,  batch_size, dur, path_sorted=None, sub=None, sampling_rate=16000, mode="train", max_size=100000, data='both'):
+    def __init__(self, path, spk,  batch_size, dur, path_sorted=None, sub=None, sampling_rate=16000, mode="train", center_num=4, test_num=2):
         super().__init__()
         seed=0
+        self.center_num = int(center_num)
+        self.test_num = int(test_num)
         random.seed(seed)
         np.random.seed(seed)
         if mode is not 'quality':
@@ -32,22 +34,12 @@ class IRMDataset(Dataset):
         self.sampling_rate = sampling_rate
         if self.mode in ['train','validation']:
             path,self.spk_utt = sort(path, path_sorted, spk,dur, sub) ###todo, data contains paths
-            self.all_spks = list(self.spk_utt.keys())
 
-            self.noisy_data = generate(path, self.mode)
-        else:
-            self.noisy_data, self.noisy_label= generate_test(path, mode, spk)
+            self.spk_utt = generate(self.spk_utt,center_num,test_num)
+            self.all_spks = list(self.spk_utt.keys())
         index = -1
-        self.batch_data = []
+        self.batch_data = self.all_spks
         self.labels = torch.load('../lst/resnet_speaker.pt')
-        number_of_minibathes = math.ceil(len(self.noisy_data) / batch_size)
-        for _ in range(number_of_minibathes):
-            if index>=len(self.noisy_data)-batch_size:
-                break
-            self.batch_data.append([])
-            for _ in range(batch_size):   
-                index = index+1
-                self.batch_data[-1].append([self.noisy_data[index]])
         with open ('/data_a11/mayi/dataset/musan/file_list', 'r') as f:
             self.noise_list=f.readlines()
         self.noise_num= len (self.noise_list)
@@ -66,26 +58,27 @@ class IRMDataset(Dataset):
         self.batch_data = temp_data
 
     def __getitem__(self, idx):
-        clean_input, noise_input = [],[]
-        noisy_input, target_spk = [],[]
-        check = []
-        correct_spk = True
-    
-        for pairs in self.batch_data[idx]:
-            check.append(pairs[0])
-            audio, _  = soundfile.read(pairs[0])
-            if self.mode == 'quality':
+        center, test = [], []
+        idx = self.batch_data[idx]
+        neg_idx = idx
+        while neg_idx==idx:
+            neg_idx=choice(self.all_spks)
+        idxs=[idx,neg_idx]
+        for spk in idxs:
+            utt_list = self.spk_utt[spk]
+            utt_temp = random.sample(utt_list, self.center_num+self.test_num)
+            for i in range(len(utt_temp)):
+                audio, _  = soundfile.read(utt_temp[i])
                 input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
-                #clean_path = pairs[0].replace('/noisy/','/clean/')
-                #wav_name = pairs[0].split('/')[-1]
-                #subs = wav_name.split('_')
-                #new_name = 'clean_'+subs[-2]+'_'+subs[-1]
-                #clean_path = clean_path.replace(wav_name,new_name)  
-                clean_path = pairs[0].replace(pairs[0].split('/')[-4],'wav')
-                clean_audio, _  = soundfile.read(clean_path)
-                clean_tensor = torch.FloatTensor(np.stack([clean_audio],axis=0))
-                return input_tensor, clean_tensor
-
+                clip_input = input_tensor.shape[-1]
+                start_point = np.random.randint(0, clip_input - 20*16000 + 1)
+                end_point = start_point+20*16000
+                if i <self.center_num:
+                    center.append(input_tensor[:,start_point:end_point])
+                else:
+                    test.append(input_tensor[:,start_point:end_point])
+        return torch.stack(center), torch.stack(test)
+        '''
             spk = pairs[0].split('/')[-1].split('-')[0]
             target_category = torch.tensor(int(self.labels[spk]))
             
@@ -97,12 +90,6 @@ class IRMDataset(Dataset):
                 input_tensor = self.augment(audio)
                 input_tensor = torch.FloatTensor(np.stack([input_tensor],axis=0))
                 clean_tensor = torch.FloatTensor(np.stack([audio],axis=0)) 
-            else: 
-                input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
-                clean_path = pairs[0].replace('IRM/mix','VoxCeleb_latest/VoxCeleb2/dev/aac_split')
-                clean_audio, _  = soundfile.read(clean_path)
-                clean_tensor = torch.FloatTensor(np.stack([clean_audio],axis=0))
-
             if len(noisy_input)==0:
                 clip_input = input_tensor.shape[-1]
                 start_point = 0
@@ -115,7 +102,7 @@ class IRMDataset(Dataset):
             target_spk.append(target_category)
         if self.mode in ['train','validation']:
             return torch.stack(noisy_input), torch.stack(target_spk), torch.stack(clean_input), correct_spk
-
+        '''
     def augment(self,audio, aug_prob=0):
         if aug_prob > random.random():
             aug_type = random.randint(1, 2)
@@ -219,11 +206,13 @@ def sort(path, path_sorted, spk_list,dur, sub):
             spk = spk_i.split('/')[1].split('-')[0]
             if spk not in spk_list:
                 continue
-            if utt_dict[spk_i]<dur*16000:
+            if utt_dict[spk_i]<20*16000:
                 continue
-            if spk not in spk_utt:
-                spk_utt[spk]=0
             utts_temp.append([spk_i, utt_dict[spk_i]])
+            if spk not in spk_utt:
+                spk_utt[spk]=[spk_i]
+            else:
+                spk_utt[spk].append(spk_i)
             i+=1
             if i>num:
                 break
@@ -233,19 +222,21 @@ def sort(path, path_sorted, spk_list,dur, sub):
     print('the shortest one:{}, the longest one:{}'.format(sort_utts[0][1],sort_utts[-1][1]))
     return utts, spk_utt
 
-def generate(path,mode):
-    clean_data,clean_label = [],[]
-    noisy_data,noisy_label = [],[]
-    for i in path:
-        idx=i.split('/')[0]
-        spk = i.split('/')[1].split('-')[0]
-        utt = i.split('/')[1]
-        #if mode=='train':
-        noisy_data.append(os.path.join('/data_a11/mayi/dataset/voxceleb_asvtorch/VoxCeleb2/dev/acc_new',idx,spk,utt))
-        #else:
-            #noisy_data.append(os.path.join('/data_a11/mayi/dataset/IRM/mix',num,i))
+def generate(utt_dict,center_num,test_num):
+    new_dict={}
+    for key in utt_dict:
+        if len(utt_dict[key])<int(center_num)+int(test_num):
+            continue
+        for i in utt_dict[key]:
+            idx = i.split('/')[0]
+            spk = i.split('/')[1].split('-')[0]
+            utt = i.split('/')[1]
+            if key in new_dict:
+                new_dict[key].append(os.path.join('/data_a11/mayi/dataset/voxceleb_asvtorch/VoxCeleb2/dev/acc_new',idx,spk,utt))
+            else:
+                new_dict[key]=[os.path.join('/data_a11/mayi/dataset/voxceleb_asvtorch/VoxCeleb2/dev/acc_new',idx,spk,utt)]
   
-    return  noisy_data
+    return  new_dict
 
 def generate_test(path, mode, spk_list=None):
     f = open(path,'r')
