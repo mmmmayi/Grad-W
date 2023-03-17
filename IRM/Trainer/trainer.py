@@ -204,7 +204,6 @@ class IRMTrainer():
             test_emb, feature = self.auxl(test,None,'score',None,points)
             self.auxl.zero_grad()
             target_mask,sim_center,dissim_center = self.generate_mask(embed_a,test_emb,feature)
-
             #feature = feature.detach().requires_grad_()
             '''
             if device==0:

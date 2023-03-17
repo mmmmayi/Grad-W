@@ -241,7 +241,7 @@ class Speaker_resnet(nn.Module):
                 x = x[:,:,start:end]
             x = (self.Mel_scale(x)+1e-6).log()
         if mask is not None:
-            x = x+(mask+2).log()
+            x = x+(mask+1+1e-6).log()
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
