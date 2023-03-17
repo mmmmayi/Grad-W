@@ -180,7 +180,8 @@ class IRMTrainer():
 
         loss = self.cos_emb(test_emb,sim_center,torch.tensor([1]*test_emb.shape[0]).cuda())+self.cos_emb(test_emb,dissim_center,torch.tensor([-1]*test_emb.shape[0]).cuda())
         mask = torch.autograd.grad(loss, feature, grad_outputs=torch.ones_like(loss), retain_graph=False)[0]
-        return 0-mask,sim_center,dissim_center
+        mask = self.vari_sigmoid(0-mask,10)
+        return mask,sim_center,dissim_center
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
         relu = nn.ReLU()
@@ -216,16 +217,10 @@ class IRMTrainer():
                     #plt.close()
  
                     #temp2 = self.vari_ReLU(yb,self.ratio,device) 
-                    fig, ax = plt.subplots(nrows=4, ncols=1, sharex=True)
-                    max=torch.max(feature[i,:,:])
-                    min = torch.min(feature[i,:,:]) 
-                    print('max',torch.max((logits[i,:,:])))
-                    librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0],vmax=max,vmin=min)
-                    librosa.display.specshow(feature[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+                    fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
+                    librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+                    img=librosa.display.specshow(target_mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
 #                    img = librosa.display.specshow(mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    img=librosa.display.specshow((logits[i,:,:]+0.5).log().detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    librosa.display.specshow((feature[i,:,:]-feature_n[i,:,:]).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[3])
-
                     #print(weight[i,:,:])
                     fig.colorbar(img, ax=ax)
 
