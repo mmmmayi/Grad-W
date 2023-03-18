@@ -236,7 +236,7 @@ class IRMTrainer():
             loss_drct = self.cos_emb(test_emb,sim_center,torch.tensor([1]*test_emb.shape[0]).cuda())+self.cos_emb(test_emb,dissim_center,torch.tensor([-1]*test_emb.shape[0]).cuda())
             logits = logits.reshape(logits.shape[0],-1)
             target_mask = target_mask.reshape(target_mask.shape[0],-1)
-            train_loss = self.weight*torch.mean(1-self.cos(logits,target_mask))+loss_drct
+            train_loss = loss_drct
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(center, '/data_a11/mayi/project/SIP/IRM/exp/debug/center.pt')
                 torch.save(test,'/data_a11/mayi/project/SIP/IRM/exp/debug/test.pt')
