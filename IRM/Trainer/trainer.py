@@ -34,6 +34,7 @@ class IRMTrainer():
         self.optimizer = optimizer
         self.ratio = ratio
         self.cos = loss_fn[0]
+        self.mse = loss_fn[1]
         self.cos_emb = nn.CosineEmbeddingLoss()
         self.last_loss = float('inf')
         self.time = 0
@@ -178,7 +179,7 @@ class IRMTrainer():
         sim_center = torch.cat((c1,c2),dim=0)
         dissim_center = torch.cat((c2,c1),dim=0)
 
-        loss = self.cos_emb(test_emb,sim_center,torch.tensor([1]*test_emb.shape[0]).cuda())+self.cos_emb(test_emb,dissim_center,torch.tensor([-1]*test_emb.shape[0]).cuda())
+        loss = self.mse(test_emb,sim_center)+1-self.mse(test_emb,dissim_center)
         mask = torch.autograd.grad(loss, feature, grad_outputs=torch.ones_like(loss), retain_graph=False)[0]
         mask = self.vari_sigmoid(0-mask,10)
         return mask,sim_center,dissim_center
@@ -233,7 +234,7 @@ class IRMTrainer():
             
             #mse = self.mse(mask, SaM.float())
             test_emb, feature = self.auxl(test,None,'score',logits,points)
-            loss_drct = self.cos_emb(test_emb,sim_center,torch.tensor([1]*test_emb.shape[0]).cuda())+self.cos_emb(test_emb,dissim_center,torch.tensor([-1]*test_emb.shape[0]).cuda())
+            loss_drct = self.mse(test_emb,sim_center)+1-self.mse(test_emb,dissim_center)
             logits = logits.reshape(logits.shape[0],-1)
             target_mask = target_mask.reshape(target_mask.shape[0],-1)
             train_loss = loss_drct
@@ -299,7 +300,7 @@ class IRMTrainer():
             self.auxl.zero_grad()
             target_mask,sim_center,dissim_center = self.generate_mask(embed_a,test_emb,feature)
             test_emb, feature = self.auxl(test,None,'score',logits,points)
-            loss_drct = self.cos_emb(test_emb,sim_center,torch.tensor([1]*test_emb.shape[0]).cuda())+self.cos_emb(test_emb,dissim_center,torch.tensor([-1]*test_emb.shape[0]).cuda())
+            loss_drct = self.mse(test_emb,sim_center)+1-self.mse(test_emb,dissim_center)
             logits = logits.reshape(logits.shape[0],-1)
             target_mask = target_mask.reshape(logits.shape[0],-1)
 
