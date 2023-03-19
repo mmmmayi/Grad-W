@@ -169,6 +169,9 @@ class IRMTrainer():
         tnr = len(np.intersect1d(n_idx.detach().cpu(),f_idx.detach().cpu()))/f_idx.numel()
         return tpr, tnr
 
+    def mse_dis(self, test, target):
+        return torch.sum(torch.pow(test-target,2),1)
+
     def generate_mask(self,embed_a,test_emb,feature):
         num_center = embed_a.shape[0]
         c1 = torch.mean(embed_a[:int(num_center/2),:],dim=0).unsqueeze(0).detach()
@@ -178,10 +181,9 @@ class IRMTrainer():
         c2 = c2.repeat(test_num,1)
         sim_center = torch.cat((c1,c2),dim=0)
         dissim_center = torch.cat((c2,c1),dim=0)
-
-        loss = self.mse(test_emb,sim_center)+1-self.mse(test_emb,dissim_center)
-        mask = torch.autograd.grad(loss, feature, grad_outputs=torch.ones_like(loss), retain_graph=False)[0]
-        mask = self.vari_sigmoid(0-mask,10)
+        p = torch.exp(0-self.mse_dis(test_emb,sim_center))/(torch.exp(0-self.mse_dis(test_emb,sim_center))+torch.exp(0-self.mse_dis(test_emb,dissim_center)))
+        mask = torch.autograd.grad(p, feature, grad_outputs=torch.ones_like(p), retain_graph=False)[0]
+        mask = self.vari_sigmoid(mask,10)
         return mask,sim_center,dissim_center
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
@@ -209,7 +211,7 @@ class IRMTrainer():
             #feature = feature.detach().requires_grad_()
             '''
             if device==0:
-                for i in range(4):
+                for i in range(8):
                     #mask_ = np.sort(yb[i,:,:].detach().cpu().squeeze().numpy(),axis=None).squeeze()
                     #x = np.arange(len(mask_))
                     #plt.plot(x, mask_, color='blue', label='predict')
@@ -234,10 +236,11 @@ class IRMTrainer():
             
             #mse = self.mse(mask, SaM.float())
             test_emb, feature = self.auxl(test,None,'score',logits,points)
-            loss_drct = self.mse(test_emb,sim_center)+1-self.mse(test_emb,dissim_center)
+            p = torch.exp(0-self.mse_dis(test_emb,sim_center))/(torch.exp(0-self.mse_dis(test_emb,sim_center))+torch.exp(0-self.mse_dis(test_emb,dissim_center)))
+            loss_drct = torch.mean(0-torch.log(p))
             logits = logits.reshape(logits.shape[0],-1)
             target_mask = target_mask.reshape(target_mask.shape[0],-1)
-            train_loss = loss_drct
+            train_loss = loss_drct+self.weight*torch.mean(1-self.cos(logits,target_mask))
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(center, '/data_a11/mayi/project/SIP/IRM/exp/debug/center.pt')
                 torch.save(test,'/data_a11/mayi/project/SIP/IRM/exp/debug/test.pt')
@@ -300,7 +303,8 @@ class IRMTrainer():
             self.auxl.zero_grad()
             target_mask,sim_center,dissim_center = self.generate_mask(embed_a,test_emb,feature)
             test_emb, feature = self.auxl(test,None,'score',logits,points)
-            loss_drct = self.mse(test_emb,sim_center)+1-self.mse(test_emb,dissim_center)
+            p = torch.exp(0-self.mse_dis(test_emb,sim_center))/(torch.exp(0-self.mse_dis(test_emb,sim_center))+torch.exp(0-self.mse_dis(test_emb,dissim_center)))
+            loss_drct = torch.mean(0-torch.log(p))
             logits = logits.reshape(logits.shape[0],-1)
             target_mask = target_mask.reshape(logits.shape[0],-1)
 
