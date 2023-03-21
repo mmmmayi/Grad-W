@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_2s_lr0.001_sig10_sig_proty_promse_cosmap"
+PROJECT_DIR = "exp/transCov_2s_lr0.001_sig10_sig_proty_promse_sgd"
 
 ## Config
 configs = {
@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
         print('Number of trainable parameters: {}'.format(total_params))
     #optimizer = torch.optim.Adam(nnet.decoder.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.Adam(list(nnet_ddp.module.decoder.parameters()),lr=configs["optimizer"]["initial_lr"])
+    optimizer = torch.optim.SGD(list(nnet_ddp.module.decoder.parameters()),lr=configs["optimizer"]["initial_lr"])
     loader_size = len(train_irm_dataset)//world_size
     print(loader_size)
     scheduler = ExponentialDecrease(optimizer,
