@@ -15,12 +15,12 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_2s_lr0.001_sig10_sig_proty_promse_sgd"
+PROJECT_DIR = "exp/transCov_2s_lr0.001_sig10_sig_proty_promse_4n3m"
 
 ## Config
 configs = {
     "weight": 1,
-    "w_hn": 0.95,
+    "num_spk": 3,
     "w_n": 0.01,
     "scale":8,  
     "num_epochs": 500,
@@ -57,7 +57,7 @@ if __name__ == "__main__":
         path_sorted = None,
         sub=1,
         spk="../lst/train_spk.lst",
-        batch_size=configs["batchsize"], dur=configs["dur"],mode="train",center_num=configs["center_num"], test_num=configs["test_num"])
+        batch_size=configs["batchsize"], dur=configs["dur"],mode="train",center_num=configs["center_num"], test_num=configs["test_num"],num_spk=configs["num_spk"])
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_irm_dataset)
     train_loader = DataLoader(
         dataset=train_irm_dataset,
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         path_sorted = None,
         sub=1,
         spk="../lst/val_spk.lst",
-        batch_size=2,dur=configs["dur"], mode="validation",center_num=configs["center_num"], test_num=configs["test_num"])
+        batch_size=2,dur=configs["dur"], mode="validation",center_num=configs["center_num"], test_num=configs["test_num"],num_spk=configs["num_spk"])
     valid_loader = DataLoader(
         dataset=valid_irm_dataset,
         batch_size=1,
@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
         print('Number of trainable parameters: {}'.format(total_params))
     #optimizer = torch.optim.Adam(nnet.decoder.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.SGD(list(nnet_ddp.module.decoder.parameters()),lr=configs["optimizer"]["initial_lr"])
+    optimizer = torch.optim.Adam(list(nnet_ddp.module.decoder.parameters()),lr=configs["optimizer"]["initial_lr"])
     loader_size = len(train_irm_dataset)//world_size
     print(loader_size)
     scheduler = ExponentialDecrease(optimizer,
@@ -131,12 +131,13 @@ if __name__ == "__main__":
         project_dir=PROJECT_DIR,
         model=nnet_ddp, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,CE_loss], dur = configs["dur"],
         train_dl=train_loader, validation_dl=valid_loader, ratio=configs["ratio"],
-        local_rank=local_rank, w_p=configs["weight"], w_n=configs["w_n"],w_hn=configs["w_hn"])
+        local_rank=local_rank, w_p=configs["weight"], w_n=configs["w_n"],center_num=configs["center_num"])
     device = torch.device("cuda")
     dist.barrier()
     #irm_trainer._get_global_mean_variance()
     for epoch in range(1, configs["num_epochs"]+1):
         irm_trainer.set_models_to_train_mode()
+#
         irm_trainer.train_epoch(epoch, configs["weight"], local_rank, loader_size, scheduler)
         if local_rank == 0:
 

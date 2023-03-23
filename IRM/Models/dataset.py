@@ -20,11 +20,12 @@ class ToTensor(object):
 
 
 class IRMDataset(Dataset):
-    def __init__(self, path, spk,  batch_size, dur, path_sorted=None, sub=None, sampling_rate=16000, mode="train", center_num=4, test_num=2):
+    def __init__(self, path, spk,  batch_size, dur, path_sorted=None, sub=None, sampling_rate=16000, mode="train", center_num=4, test_num=2,num_spk=2):
         super().__init__()
         seed=0
         self.center_num = int(center_num)
         self.test_num = int(test_num)
+        self.num_spk = int(num_spk)
         random.seed(seed)
         np.random.seed(seed)
         if mode is not 'quality':
@@ -58,26 +59,34 @@ class IRMDataset(Dataset):
         self.batch_data = temp_data
 
     def __getitem__(self, idx):
-        center, test = [], []
+        center, test, target = [], [], []
         idx = self.batch_data[idx]
-        neg_idx = idx
-        while neg_idx==idx:
+        spks=[idx]
+        
+        while len(spks)<self.num_spk:
             neg_idx=choice(self.all_spks)
-        idxs=[idx,neg_idx]
-        for spk in idxs:
+            if neg_idx not in spks:
+                spks.append(neg_idx)
+
+        j = 0
+        for spk in spks:
             utt_list = self.spk_utt[spk]
             utt_temp = random.sample(utt_list, self.center_num+self.test_num)
             for i in range(len(utt_temp)):
-                audio, _  = soundfile.read(utt_temp[i])
-                input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
-                clip_input = input_tensor.shape[-1]
-                start_point = np.random.randint(0, clip_input - 20*16000 + 1)
-                end_point = start_point+20*16000
                 if i <self.center_num:
-                    center.append(input_tensor[:,start_point:end_point])
+                    path = utt_temp[i].replace('acc_new','emb').replace('.wav','.pt')
+                    emb = torch.load(path)
+                    center.append(emb.squeeze())
                 else:
+                    audio, _  = soundfile.read(utt_temp[i])
+                    input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
+                    clip_input = input_tensor.shape[-1]
+                    start_point = np.random.randint(0, clip_input - 20*16000 + 1)
+                    end_point = start_point+20*16000
                     test.append(input_tensor[:,start_point:end_point])
-        return torch.stack(center), torch.stack(test)
+                    target.append(torch.tensor(j))
+            j = j+1
+        return torch.stack(center), torch.stack(test),  torch.stack(target)
         '''
             spk = pairs[0].split('/')[-1].split('-')[0]
             target_category = torch.tensor(int(self.labels[spk]))
