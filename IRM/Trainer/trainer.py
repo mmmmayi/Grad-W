@@ -172,22 +172,6 @@ class IRMTrainer():
     def mse_dis(self, test, target,dim=1):
         return torch.sum(torch.pow(test-target,2),dim)
 
-    def generate_mask(self,embed_a,test_emb,feature):
-        num_center = embed_a.shape[0]
-        c1 = torch.mean(embed_a[:int(num_center/2),:],dim=0).unsqueeze(0).detach()
-        c2 = torch.mean(embed_a[int(num_center/2):,:],dim=0).unsqueeze(0).detach()
-        test_num = int(test_emb.shape[0]/2)
-        c1 = c1.repeat(test_num,1)
-        c2 = c2.repeat(test_num,1)
-        sim_center = torch.cat((c1,c2),dim=0)
-        dissim_center = torch.cat((c2,c1),dim=0)
-        p = torch.exp(0-self.mse_dis(test_emb,sim_center))/(torch.exp(0-self.mse_dis(test_emb,sim_center))+torch.exp(0-self.mse_dis(test_emb,dissim_center)))
-        #print('p',p)
-        #print('up',torch.exp(0-self.mse_dis(test_emb,sim_center)))
-        mask = torch.autograd.grad(p, feature, grad_outputs=torch.ones_like(p), retain_graph=True)[0]
-        mask = self.vari_sigmoid(mask,10)
-        return mask,sim_center,dissim_center
-
     def compute_p(self, centers, test_emb, target):
         centers=centers.unsqueeze(1)
         test_emb = test_emb.unsqueeze(0)
@@ -207,16 +191,30 @@ class IRMTrainer():
         p=dis_class/dis_sum
         #print('p_new',p)
         return p
-    def generate_mask_new(self,centers,test_emb,target,feature):
+    def generate_mask_new(self,centers,test_emb,target,feature,feature_center):
         '''
         centers = [B,D], B centers with dim=D
         test_emb = [num_test,D]
         target = [num_test,1]
         '''
         p=self.compute_p(centers,test_emb,target)
-        mask = torch.autograd.grad(p, feature, grad_outputs=torch.ones_like(p), retain_graph=False)[0]
+        mask = torch.autograd.grad(p, feature, grad_outputs=torch.ones_like(p), retain_graph=True)[0]
+
         mask = self.vari_sigmoid(mask,10)
-        return mask
+        mask_center = torch.autograd.grad(p, feature_center, grad_outputs=torch.ones_like(p), retain_graph=False)[0]
+        return torch.cat((mask,mask_center),0)
+
+    def generate_centers(self,embed_a):
+        num_center = embed_a.shape[0]
+        num_spk = int(num_center/self.center_num)
+        centers=[]
+        for i in range(num_spk):
+            embed=torch.mean(embed_a[i*self.center_num:(i+1)*self.center_num,:],dim=0)
+            centers.append(embed)
+        centers=torch.stack(centers).squeeze().requires_grad_()
+        return centers
+ 
+
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
         relu = nn.ReLU()
         running_cos, running_score, running_n, running_tpr, running_tnr, running_mse, running_tht = 0,0,0,0,0,0,0
@@ -230,28 +228,20 @@ class IRMTrainer():
             center, test, target = sample_batched
             #print('target',target)
             #print(Xb.device)
+            _, num_center, _, W = center.shape
+            center = center.reshape(num_center,W).cuda()
             target = target.cuda()
-            center = center.squeeze().cuda()
-            num_center = center.shape[0]
+            
             _, num_test, _, W = test.shape
             test = test.reshape(num_test,W).cuda()
             
-            logits, feature_n, points = self.model(test)
-            #embed_a = self.auxl(center,mode='reference')
-            num_spk = int(num_center/self.center_num)
-            centers=[]
-            for i in range(num_spk):
-                embed=torch.mean(center[i*self.center_num:(i+1)*self.center_num,:],dim=0).detach()
-                #print('embed',embed.shape)
-                centers.append(embed)
-            centers=torch.stack(centers).squeeze()
-            #print('centers',centers.shape)[2,256]
-        
-
+            logits, feature_n, points = self.model(torch.cat((center,test),0))
+            embed_a, feature_center = self.auxl(center,mode='score',mask=None,points=points)
+            centers = self.generate_centers(embed_a)
+                
             test_emb, feature = self.auxl(test,None,'score',None,points)
             self.auxl.zero_grad()
-            #target_mask,sim_center,dissim_center = self.generate_mask(centers, test_emb,  feature)
-            target_mask = self.generate_mask_new(centers, test_emb, target, feature)
+            target_mask = self.generate_mask_new(centers, test_emb, target, feature, feature_center).detach()
             
             #feature = feature.detach().requires_grad_()
             '''
@@ -278,9 +268,10 @@ class IRMTrainer():
                 quit() 
             '''
             #inverse_mask = 1-mask
-            
+            embed_a, feature_center = self.auxl(center,mode='score',mask=logits[:num_center,:,:],points=points)
+            centers = self.generate_centers(embed_a)           
             #mse = self.mse(mask, SaM.float())
-            test_emb, feature = self.auxl(test,None,'score',logits,points)
+            test_emb, feature = self.auxl(test,None,'score',logits[num_center:,:,:],points)
             #p = torch.exp(0-self.mse_dis(test_emb,sim_center))/(torch.exp(0-self.mse_dis(test_emb,sim_center))+torch.exp(0-self.mse_dis(test_emb,dissim_center)))
             #print(p)
             p = self.compute_p(centers,test_emb,target)
@@ -339,25 +330,23 @@ class IRMTrainer():
         for sample_batched in tqdm(self.validation_dataloader):
             center, test, target = sample_batched
             target = target.cuda()
-            center = center.squeeze().cuda()
-            num_center = center.shape[0]
+            _, num_center, _, W = center.shape
+            center = center.reshape(num_center,W).cuda()
             
             _, num_test, _, W = test.shape
             test = test.reshape(num_test,W).cuda()
 
-            logits, feature_n, points = self.model(test)
-            #embed_a = self.auxl(center,mode='reference')
-            num_spk = int(num_center/self.center_num)
-            centers=[]
-            for i in range(num_spk):
-                embed=torch.mean(center[i*self.center_num:(i+1)*self.center_num,:],dim=0).detach()
-                centers.append(embed)
-            centers=torch.stack(centers).squeeze()
+            logits, feature_n, points = self.model(torch.cat((center,test),0))
+            embed_a, feature_center = self.auxl(center,mode='score',mask=None,points=points)
+            centers = self.generate_centers(embed_a)
+
             test_emb, feature = self.auxl(test,None,'score',None,points)
             self.auxl.zero_grad()
-            target_mask = self.generate_mask_new(centers, test_emb, target, feature)
-
-            test_emb, feature = self.auxl(test,None,'score',logits,points)
+            target_mask = self.generate_mask_new(centers, test_emb, target, feature, feature_center).detach()
+            embed_a, feature_center = self.auxl(center,mode='score',mask=logits[:num_center,:,:],points=points)
+            centers = self.generate_centers(embed_a)
+            test_emb, feature = self.auxl(test,None,'score',logits[num_center:,:,:],points)
+            
             p = self.compute_p(centers,test_emb,target)
             loss_drct = torch.mean(0-torch.log(p))
             logits = logits.reshape(logits.shape[0],-1)
