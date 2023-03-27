@@ -73,18 +73,17 @@ class IRMDataset(Dataset):
             utt_list = self.spk_utt[spk]
             utt_temp = random.sample(utt_list, self.center_num+self.test_num)
             for i in range(len(utt_temp)):
-                if i <self.center_num:
-                    path = utt_temp[i].replace('acc_new','emb').replace('.wav','.pt')
-                    emb = torch.load(path)
-                    center.append(emb.squeeze())
-                else:
-                    audio, _  = soundfile.read(utt_temp[i])
+                
+                audio, _  = soundfile.read(utt_temp[i])
                     
-                    clip_input = audio.shape[0]
-                    start_point = np.random.randint(0, clip_input - 5*16000 + 1)
-                    end_point = start_point+5*16000
-                    audio = self.augment(audio[start_point:end_point])
-                    input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
+                clip_input = audio.shape[0]
+                start_point = np.random.randint(0, clip_input - 5*16000 + 1)
+                end_point = start_point+5*16000
+                audio = self.augment(audio[start_point:end_point])
+                input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
+                if i <self.center_num:
+                    center.append(input_tensor)
+                else:
                     test.append(input_tensor)
                     target.append(torch.tensor(j))
             j = j+1
@@ -114,7 +113,7 @@ class IRMDataset(Dataset):
         if self.mode in ['train','validation']:
             return torch.stack(noisy_input), torch.stack(target_spk), torch.stack(clean_input), correct_spk
         '''
-    def augment(self,audio, aug_prob=0.6):
+    def augment(self,audio, aug_prob=1):
         if aug_prob > random.random():
             aug_type = random.randint(1, 2)
             if aug_type == 1:
