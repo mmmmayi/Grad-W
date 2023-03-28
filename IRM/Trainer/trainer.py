@@ -202,7 +202,8 @@ class IRMTrainer():
 
         mask = self.vari_sigmoid(mask,10)
         mask_center = torch.autograd.grad(p, feature_center, grad_outputs=torch.ones_like(p), retain_graph=False)[0]
-        return torch.cat((mask,mask_center),0)
+        mask_center = self.vari_sigmoid(mask_center,10)
+        return torch.cat((mask_center,mask),0)
 
     def generate_centers(self,embed_a):
         num_center = embed_a.shape[0]
@@ -226,7 +227,8 @@ class IRMTrainer():
             scheduler.step(cur_iter)
             # Load data from trainloader
             center, test, target = sample_batched
-            #print('target',target)
+            print('center',center.shape)
+            print(test.shape)
             #print(Xb.device)
             _, num_center, _, W = center.shape
             center = center.reshape(num_center,W).cuda()
@@ -242,11 +244,11 @@ class IRMTrainer():
             test_emb, feature = self.auxl(test,None,'score',None,points)
             self.auxl.zero_grad()
             target_mask = self.generate_mask_new(centers, test_emb, target, feature, feature_center).detach()
-            
             #feature = feature.detach().requires_grad_()
             '''
             if device==0:
-                for i in range(8):
+                for i in range(4):
+                    
                     #mask_ = np.sort(yb[i,:,:].detach().cpu().squeeze().numpy(),axis=None).squeeze()
                     #x = np.arange(len(mask_))
                     #plt.plot(x, mask_, color='blue', label='predict')
@@ -255,14 +257,29 @@ class IRMTrainer():
                     #plt.close()
  
                     #temp2 = self.vari_ReLU(yb,self.ratio,device) 
-                    fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
-                    librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
-                    img=librosa.display.specshow(target_mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-#                    img = librosa.display.specshow(mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    #print(weight[i,:,:])
-                    fig.colorbar(img, ax=ax)
+                    fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+                    librosa.display.specshow(feature_center[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+                    librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+                    img=librosa.display.specshow(target_mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
 
-                    #img = librosa.display.specshow(yb[i].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+                    fig.colorbar(img, ax=ax)
+                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'varied.png')
+                    plt.close()
+                for i in range(4,8):
+                    
+                    #mask_ = np.sort(yb[i,:,:].detach().cpu().squeeze().numpy(),axis=None).squeeze()
+                    #x = np.arange(len(mask_))
+                    #plt.plot(x, mask_, color='blue', label='predict')
+                    #plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'sort.png')
+
+                    #plt.close()
+ 
+                    #temp2 = self.vari_ReLU(yb,self.ratio,device) 
+                    fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+                    librosa.display.specshow(feature[i-4,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+                    librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+                    img=librosa.display.specshow(target_mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+                    fig.colorbar(img, ax=ax)
                     plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'varied.png')
                     plt.close()
                 quit() 
@@ -335,7 +352,6 @@ class IRMTrainer():
             
             _, num_test, _, W = test.shape
             test = test.reshape(num_test,W).cuda()
-
             logits, feature_n, points = self.model(torch.cat((center,test),0))
             embed_a, feature_center = self.auxl(center,mode='score',mask=None,points=points)
             centers = self.generate_centers(embed_a)
@@ -355,6 +371,7 @@ class IRMTrainer():
             running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
             running_score += loss_drct.item()
             i_batch += 1
+            torch.cuda.empty_cache()
         if device==0:    
             ave_cos_loss = running_cos / i_batch
             ave_score_loss = running_score / i_batch
