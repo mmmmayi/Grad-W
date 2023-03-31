@@ -15,19 +15,19 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_2s_lr0.0001_sig10_sig_ncen_ntest_promse_4n10m_nocons"
+PROJECT_DIR = "exp/transCov_2s_lr0.0001_sig10_sig_ncen_ntest_promse_1n32m1k_nocons"
 
 ## Config
 configs = {
     "weight": 1,
-    "num_spk": 10,
+    "num_spk": 32,
     "w_n": 0.01,
     "scale":8,  
     "num_epochs": 500,
     "th": 0.05,
     "batchsize": 32,
-    "center_num": '4',
-    "test_num":'4',
+    "center_num": '1',
+    "test_num":'1',
     "dur": 2,
     "resume_epoch":None,
     "ratio":0.1,
@@ -50,6 +50,7 @@ if __name__ == "__main__":
 
     dist.init_process_group(backend="nccl")
     #dist.barrier() 
+    
     ## Dataloader
     # train
     train_irm_dataset = IRMDataset(
