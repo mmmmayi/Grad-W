@@ -227,8 +227,6 @@ class IRMTrainer():
             scheduler.step(cur_iter)
             # Load data from trainloader
             center, test, target = sample_batched
-            print('center',center.shape)
-            print(test.shape)
             #print(Xb.device)
             _, num_center, _, W = center.shape
             center = center.reshape(num_center,W).cuda()
@@ -352,16 +350,20 @@ class IRMTrainer():
             
             _, num_test, _, W = test.shape
             test = test.reshape(num_test,W).cuda()
-            logits, feature_n, points = self.model(torch.cat((center,test),0))
+            with torch.no_grad():
+                logits, feature_n, points = self.model(torch.cat((center,test),0))
+            
             embed_a, feature_center = self.auxl(center,mode='score',mask=None,points=points)
             centers = self.generate_centers(embed_a)
 
             test_emb, feature = self.auxl(test,None,'score',None,points)
             self.auxl.zero_grad()
             target_mask = self.generate_mask_new(centers, test_emb, target, feature, feature_center).detach()
-            embed_a, feature_center = self.auxl(center,mode='score',mask=logits[:num_center,:,:],points=points)
+            with torch.no_grad():
+                embed_a, feature_center = self.auxl(center,mode='score',mask=logits[:num_center,:,:],points=points)
             centers = self.generate_centers(embed_a)
-            test_emb, feature = self.auxl(test,None,'score',logits[num_center:,:,:],points)
+            with torch.no_grad():
+                test_emb, feature = self.auxl(test,None,'score',logits[num_center:,:,:],points)
             
             p = self.compute_p(centers,test_emb,target)
             loss_drct = torch.mean(0-torch.log(p))

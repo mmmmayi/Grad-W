@@ -428,8 +428,8 @@ class IRMApplier():
             audio, _  = soundfile.read(os.path.join(clean_path, num,file))
             clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             #feature = torch.load('/data_a11/mayi/project/SIP/IRM/exp/debug/feature.pt')
-            mask,feature, points = self.model(clean,'apply')
-            #acc = self.auxl(feature,target_spk,'acc',mask,points)
+            mask,feature, points = self.model(Xb,'apply')
+            _,feature_c = self.auxl(clean,target_spk,'score',None,points)
             #accs += acc
             #continue
                         #mask = mask[:,:,:frame_len]
@@ -444,12 +444,13 @@ class IRMApplier():
 
             plt.close()
             #continue
-            fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
+            fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
             #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
 
-            librosa.display.specshow(feature.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+            librosa.display.specshow(feature_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
-            img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+            librosa.display.specshow(feature.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+            img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
             fig.colorbar(img, ax=ax)
             #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
 

@@ -62,7 +62,6 @@ class IRMDataset(Dataset):
         center, test, target = [], [], []
         idx = self.batch_data[idx]
         spks=[idx]
-        
         while len(spks)<self.num_spk:
             neg_idx=choice(self.all_spks)
             if neg_idx not in spks:
