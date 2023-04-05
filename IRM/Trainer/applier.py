@@ -39,7 +39,7 @@ class IRMApplier():
         self.std = self.std.reshape(1,257,1)
         
         # Load model
-        self.model = multi_TDNN(dur=4).cuda()
+        self.model = multi_TDNN().cuda()
         checkpoint = torch.load(model_path)
         '''
         from collections import OrderedDict

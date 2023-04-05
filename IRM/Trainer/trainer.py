@@ -235,13 +235,14 @@ class IRMTrainer():
             _, num_test, _, W = test.shape
             test = test.reshape(num_test,W).cuda()
             
-            logits, feature_n, points = self.model(torch.cat((center,test),0))
-            embed_a, feature_center = self.auxl(center,mode='score',mask=None,points=points)
-            centers = self.generate_centers(embed_a)
+            logits_center, feature_n, points_center = self.model(center,dur=20)
+            logits_test, feature_n, points_test = self.model(test,dur=2)
+            #embed_a, feature_center = self.auxl(center,mode='score',mask=None,points=points)
+            #centers = self.generate_centers(embed_a)
                 
-            test_emb, feature = self.auxl(test,None,'score',None,points)
-            self.auxl.zero_grad()
-            target_mask = self.generate_mask_new(centers, test_emb, target, feature, feature_center).detach()
+            #test_emb, feature = self.auxl(test,None,'score',None,points)
+            #self.auxl.zero_grad()
+            #target_mask = self.generate_mask_new(centers, test_emb, target, feature, feature_center).detach()
             #feature = feature.detach().requires_grad_()
             '''
             if device==0:
@@ -283,16 +284,16 @@ class IRMTrainer():
                 quit() 
             '''
             #inverse_mask = 1-mask
-            embed_a, feature_center = self.auxl(center,mode='score',mask=logits[:num_center,:,:],points=points)
+            embed_a, feature_center = self.auxl(center,mode='score',mask=logits_center,points=points_center)
             centers = self.generate_centers(embed_a)           
             #mse = self.mse(mask, SaM.float())
-            test_emb, feature = self.auxl(test,None,'score',logits[num_center:,:,:],points)
+            test_emb, feature = self.auxl(test,None,'score',logits_test,points_test)
             #p = torch.exp(0-self.mse_dis(test_emb,sim_center))/(torch.exp(0-self.mse_dis(test_emb,sim_center))+torch.exp(0-self.mse_dis(test_emb,dissim_center)))
             #print(p)
             p = self.compute_p(centers,test_emb,target)
             loss_drct = torch.mean(0-torch.log(p))
-            logits = logits.reshape(logits.shape[0],-1)
-            target_mask = target_mask.reshape(target_mask.shape[0],-1)
+            #logits = logits.reshape(logits.shape[0],-1)
+            #target_mask = target_mask.reshape(target_mask.shape[0],-1)
             train_loss = loss_drct
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(center, '/data_a11/mayi/project/SIP/IRM/exp/debug/center.pt')
@@ -300,7 +301,7 @@ class IRMTrainer():
                 state_dict = self.model.state_dict()
                 torch.save(state_dict,'/data_a11/mayi/project/SIP/IRM/exp/debug/model.pt')
                 quit()
-            running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
+            #running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
             running_score += loss_drct.item()
             i_batch += 1
 
@@ -322,9 +323,9 @@ class IRMTrainer():
             #if epoch%10 ==0:
                 #torch.save(self.model, f"{self.PROJECT_DIR}/models/model_{epoch}.pt")
         if device ==0:
-            ave_cos_loss = running_cos / i_batch
+            #ave_cos_loss = running_cos / i_batch
             ave_score_loss = running_score / i_batch
-            self.writer.add_scalar('Train/cos', ave_cos_loss, epoch)
+            #self.writer.add_scalar('Train/cos', ave_cos_loss, epoch)
             self.writer.add_scalar('Train/score', ave_score_loss, epoch)
 
             self.logger.info("Epoch:{}".format(epoch)) 

@@ -84,7 +84,7 @@ if __name__ == "__main__":
     print('world_size:',world_size)
     ## Model, loss_fn, opt
     if configs['resume_epoch'] is not None:
-        nnet = multi_TDNN(dur=configs["dur"])
+        nnet = multi_TDNN()
         checkpoint = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
         nnet.load_state_dict(checkpoint)
     else:

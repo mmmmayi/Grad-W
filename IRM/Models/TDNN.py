@@ -150,10 +150,10 @@ class Speaker_resnet(nn.Module):
                  feat_dim=80,
                  embed_dim=256,
                  pooling_func='TSTP',
-                 dur=4):
+                 ):
         super(Speaker_resnet, self).__init__()
         block = BasicBlock
-        self.dur=dur
+        
         self.in_planes = m_channels
         self.feat_dim = feat_dim
         self.embed_dim = embed_dim
@@ -205,8 +205,8 @@ class Speaker_resnet(nn.Module):
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
 
-    def _clip_point(self, frame_len):
-        clip_length = 100*self.dur
+    def _clip_point(self, frame_len,dur):
+        clip_length = 100*dur
         start_point = 0
         end_point = frame_len
         if frame_len>=clip_length:
@@ -217,7 +217,7 @@ class Speaker_resnet(nn.Module):
             quit()
         return start_point, end_point
 
-    def forward(self, x, targets=None, mode='feature', mask=None, points=None):
+    def forward(self, x, targets=None, mode='feature', mask=None, points=None,dur=2):
         
         with torch.no_grad():
             x = self.pre(x)
@@ -234,7 +234,7 @@ class Speaker_resnet(nn.Module):
                 x = x
             else:
                 if points is None:
-                    start, end = self._clip_point(frame_len)
+                    start, end = self._clip_point(frame_len,dur)
                 else: 
                     start = points[0]
                     end = points[1]
@@ -424,12 +424,12 @@ class decoder(nn.Module):
 
 class multi_TDNN(nn.Module):
     
-    def __init__(self,dur, scale=2):
+    def __init__(self,scale=2):
         super(multi_TDNN, self).__init__()
         
         self.decoder = decoder(scale)
 
-        self.speaker = Speaker_resnet(dur=dur)
+        self.speaker = Speaker_resnet()
         #for name in self.speaker.parameters():
             #print(name)
 
@@ -442,13 +442,13 @@ class multi_TDNN(nn.Module):
                 #print('param',param)
             p.requires_grad = False
         self.speaker.eval()
-    def forward(self,input,mode='encoder',target=None):
+    def forward(self,input,mode='encoder',target=None,dur=2):
         self.speaker.eval()
         #for name, param in self.speaker.parameters():
             #print(name)
         #print(next(self.speaker.parameters()).device)
             #print('input:{},speaker:{}'.format(input.device,i.device))
         
-        encoder_out,feature,points= self.speaker(input,mode=mode,targets=target)
+        encoder_out,feature,points= self.speaker(input,mode=mode,targets=target,dur=dur)
         mask = self.decoder(encoder_out)
         return mask,feature,points
