@@ -78,7 +78,7 @@ class IRMDataset(Dataset):
                 clip_input = audio.shape[0]
                 start_point = np.random.randint(0, clip_input - 5*16000 + 1)
                 end_point = start_point+5*16000
-                audio = self.augment(audio[start_point:end_point])
+                audio = self.augment(audio[start_point:end_point],0)
                 input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
                 if i <self.center_num:
                     center.append(input_tensor)

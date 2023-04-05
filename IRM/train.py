@@ -15,19 +15,19 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_2s_lr0.0001_sig10_sig_ncen_ntest_promse_1n32m1k_nocons"
+PROJECT_DIR = "exp/transCov_2s_lr0.0001_sig10_sig_ccen_ctest_promse_4n2m4k"
 
 ## Config
 configs = {
     "weight": 1,
-    "num_spk": 32,
+    "num_spk": 2,
     "w_n": 0.01,
     "scale":8,  
     "num_epochs": 500,
     "th": 0.05,
     "batchsize": 32,
-    "center_num": '1',
-    "test_num":'1',
+    "center_num": '4',
+    "test_num":'4',
     "dur": 2,
     "resume_epoch":None,
     "ratio":0.1,
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         batch_size=1,
         shuffle=None,
         sampler=train_sampler,
-        num_workers=16)
+        num_workers=8)
        
     print('check dataset length:',len(train_irm_dataset))    
     # valid
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         dataset=valid_irm_dataset,
         batch_size=1,
         shuffle=None,
-        num_workers=16)
+        num_workers=8)
     world_size = int(os.environ['WORLD_SIZE'])
     print('world_size:',world_size)
     ## Model, loss_fn, opt
