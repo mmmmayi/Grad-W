@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_2s_lr0.0001_sig10_sig_ccen_ctest_promse_4n2m4k"
+PROJECT_DIR = "exp/transCov_lr0.0001_sig10_sig_ctest2_fixcen20_promse_4n2m4k"
 
 ## Config
 configs = {
@@ -28,7 +28,7 @@ configs = {
     "batchsize": 32,
     "center_num": '4',
     "test_num":'4',
-    "dur": 2,
+    "dur": 20,
     "resume_epoch":None,
     "ratio":0.1,
     "gpu":[0],
@@ -88,7 +88,7 @@ if __name__ == "__main__":
         checkpoint = torch.load(f"{PROJECT_DIR}/models/model_{configs['resume_epoch']}.pt")
         nnet.load_state_dict(checkpoint)
     else:
-        nnet = multi_TDNN(dur=configs["dur"], scale=configs["scale"])
+        nnet = multi_TDNN(scale=configs["scale"])
     print(nnet)
     nnet.cuda()
     #nnet_ddp = nnet.to(f'cuda:{local_rank}')

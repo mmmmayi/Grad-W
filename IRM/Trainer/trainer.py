@@ -235,9 +235,6 @@ class IRMTrainer():
             _, num_test, _, W = test.shape
             test = test.reshape(num_test,W).cuda()
             
-            logits_center, feature_n, points_center = self.model(center,dur=20)
-            logits_test, feature_n, points_test = self.model(test,dur=2)
-            #embed_a, feature_center = self.auxl(center,mode='score',mask=None,points=points)
             #centers = self.generate_centers(embed_a)
                 
             #test_emb, feature = self.auxl(test,None,'score',None,points)
@@ -284,10 +281,15 @@ class IRMTrainer():
                 quit() 
             '''
             #inverse_mask = 1-mask
-            embed_a, feature_center = self.auxl(center,mode='score',mask=logits_center,points=points_center)
+            reps = self.auxl(center,mode='encoder')
+            logits_center = self.model(reps)
+            reps = self.auxl(test,mode='encoder')
+            logits_test = self.model(reps)
+ 
+            embed_a, feature_center = self.auxl(center, mode='score',mask=logits_center)
             centers = self.generate_centers(embed_a)           
             #mse = self.mse(mask, SaM.float())
-            test_emb, feature = self.auxl(test,None,'score',logits_test,points_test)
+            test_emb, feature = self.auxl(test,None,'score',logits_test)
             #p = torch.exp(0-self.mse_dis(test_emb,sim_center))/(torch.exp(0-self.mse_dis(test_emb,sim_center))+torch.exp(0-self.mse_dis(test_emb,dissim_center)))
             #print(p)
             p = self.compute_p(centers,test_emb,target)
@@ -300,7 +302,6 @@ class IRMTrainer():
                 torch.save(test,'/data_a11/mayi/project/SIP/IRM/exp/debug/test.pt')
                 state_dict = self.model.state_dict()
                 torch.save(state_dict,'/data_a11/mayi/project/SIP/IRM/exp/debug/model.pt')
-                quit()
             #running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
             running_score += loss_drct.item()
             i_batch += 1
@@ -308,6 +309,7 @@ class IRMTrainer():
             self.optimizer.zero_grad()
 
             try:
+                
                 train_loss.backward()
             except RuntimeError as e:
                 print(e)
@@ -352,34 +354,37 @@ class IRMTrainer():
             _, num_test, _, W = test.shape
             test = test.reshape(num_test,W).cuda()
             with torch.no_grad():
-                logits, feature_n, points = self.model(torch.cat((center,test),0))
+                reps = self.auxl(center,mode='encoder')
+                logits_center = self.model(reps)
+                reps = self.auxl(test,mode='encoder')
+                logits_test = self.model(reps)
             
-            embed_a, feature_center = self.auxl(center,mode='score',mask=None,points=points)
-            centers = self.generate_centers(embed_a)
+            #embed_a, feature_center = self.auxl(center,mode='score',mask=None)
+            #centers = self.generate_centers(embed_a)
 
-            test_emb, feature = self.auxl(test,None,'score',None,points)
-            self.auxl.zero_grad()
-            target_mask = self.generate_mask_new(centers, test_emb, target, feature, feature_center).detach()
+            #test_emb, feature = self.auxl(test,None,'score',None)
+            #self.auxl.zero_grad()
+            #target_mask = self.generate_mask_new(centers, test_emb, target, feature, feature_center).detach()
             with torch.no_grad():
-                embed_a, feature_center = self.auxl(center,mode='score',mask=logits[:num_center,:,:],points=points)
+                embed_a, feature_center = self.auxl(center, mode='score',mask=logits_center)
             centers = self.generate_centers(embed_a)
             with torch.no_grad():
-                test_emb, feature = self.auxl(test,None,'score',logits[num_center:,:,:],points)
+                test_emb, feature = self.auxl(test,None,'score',logits_test)
             
             p = self.compute_p(centers,test_emb,target)
             loss_drct = torch.mean(0-torch.log(p))
-            logits = logits.reshape(logits.shape[0],-1)
-            target_mask = target_mask.reshape(logits.shape[0],-1)
+            #logits = logits.reshape(logits.shape[0],-1)
+            #target_mask = target_mask.reshape(logits.shape[0],-1)
 
-            running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
+            #running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
             running_score += loss_drct.item()
             i_batch += 1
             torch.cuda.empty_cache()
         if device==0:    
-            ave_cos_loss = running_cos / i_batch
+            #ave_cos_loss = running_cos / i_batch
             ave_score_loss = running_score / i_batch
             end_time = time.time()
-            self.writer.add_scalar('Validation/cos', ave_cos_loss, epoch)
+            #self.writer.add_scalar('Validation/cos', ave_cos_loss, epoch)
             self.writer.add_scalar('Validation/score', ave_score_loss, epoch)
             self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
             self.logger.info("Epoch:{}".format(epoch))

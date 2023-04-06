@@ -46,7 +46,7 @@ class BasicBlock(nn.Module):
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
-        out += self.shortcut(x)
+        out = out+self.shortcut(x)
         out = F.relu(out)
         return out
 
@@ -135,6 +135,7 @@ class TSTP(nn.Module):
     def forward(self, x):
         # The last dimension is the temporal axis
         pooling_mean = x.mean(dim=-1)
+        #pooling_mean = torch.mean(x,dim=-1)
         pooling_std = torch.sqrt(torch.var(x, dim=-1) + 1e-8)
         pooling_mean = pooling_mean.flatten(start_dim=1)
         pooling_std = pooling_std.flatten(start_dim=1)
@@ -217,7 +218,7 @@ class Speaker_resnet(nn.Module):
             quit()
         return start_point, end_point
 
-    def forward(self, x, targets=None, mode='feature', mask=None, points=None,dur=2):
+    def forward(self, x, targets=None, mode='feature', mask=None):
         
         with torch.no_grad():
             x = self.pre(x)
@@ -227,19 +228,12 @@ class Speaker_resnet(nn.Module):
                 if frame_len%8>0:
                     pad_num = math.ceil(frame_len/8)*8-frame_len
                     pad = torch.nn.ZeroPad2d((0,pad_num,0,0))
-                    start = 0
                     x = pad(x)
-                    end = x.shape[-1]
-            elif mode =='reference':
-                x = x
             else:
-                if points is None:
-                    start, end = self._clip_point(frame_len,dur)
-                else: 
-                    start = points[0]
-                    end = points[1]
-                x = x[:,:,start:end]
+                x = x[:,:,:math.floor(frame_len/8)*8]
+                
             x = (self.Mel_scale(x)+1e-6).log()
+
         if mask is not None:
             x = x+(mask+0.5).log()
             #x = (self.Spec(x)+1e-8)
@@ -253,13 +247,13 @@ class Speaker_resnet(nn.Module):
         out = F.relu(self.bn1(self.conv1(x)))
         #print('out.shape:',out.shape) #[B,32,80,T]
         out1 = self.layer1(out)
-        #print('layer1 shape:',out.shape) #[B,32,80,T]
+        #print('layer1 shape:',out1.shape) #[B,32,80,T]
         out2 = self.layer2(out1)
-        #print('layer2 shape:',out.shape) #[B,64,40,T/2]
+        #print('layer2 shape:',out2.shape) #[B,64,40,T/2]
         out3 = self.layer3(out2)
-        #print('layer3 shape:',out.shape)#[B,128,20,T/4]
+        #print('layer3 shape:',out3.shape)#[B,128,20,T/4]
         out4 = self.layer4(out3)
-        #print('layer4 shape:',out.shape)#[B,256,10,T/8]
+        #print('layer4 shape:',out4.shape)#[B,256,10,T/8]
         #frame = out4.requires_grad_()
         stats = self.pool(out4)
         embed_a = self.seg_1(stats)
@@ -275,9 +269,9 @@ class Speaker_resnet(nn.Module):
         if mode=='score':
             return embed_a, feature
         elif mode == 'encoder':
-            return [out1,out2,out3,out4,embed_a],feature,[start,end]
+            return [out1,out2,out3,out4,embed_a]
         elif mode == 'apply':
-            return [out1,out2,out3,out4,embed_a],feature,[start,end]
+            return [out1,out2,out3,out4,embed_a],feature
         elif mode == 'reference':
             return embed_a
         elif mode in ['loss','acc']:
@@ -429,26 +423,26 @@ class multi_TDNN(nn.Module):
         
         self.decoder = decoder(scale)
 
-        self.speaker = Speaker_resnet()
+        #self.speaker = Speaker_resnet()
         #for name in self.speaker.parameters():
             #print(name)
 
-        path = "exp/resnet_5994.pt"
-        checkpoint = torch.load(path)
-        self.speaker.load_state_dict(checkpoint, strict=False)
+        #path = "exp/resnet_5994.pt"
+        #checkpoint = torch.load(path)
+        #self.speaker.load_state_dict(checkpoint, strict=False)
 
-        for p in self.speaker.parameters():
+        #for p in self.speaker.parameters():
             #if 'projection' in name:
                 #print('param',param)
-            p.requires_grad = False
-        self.speaker.eval()
-    def forward(self,input,mode='encoder',target=None,dur=2):
-        self.speaker.eval()
+            #p.requires_grad = False
+        #self.speaker.eval()
+    def forward(self,encoder_out):
+        #self.speaker.eval()
         #for name, param in self.speaker.parameters():
             #print(name)
         #print(next(self.speaker.parameters()).device)
             #print('input:{},speaker:{}'.format(input.device,i.device))
         
-        encoder_out,feature,points= self.speaker(input,mode=mode,targets=target,dur=dur)
+        #encoder_out,feature = self.speaker(input,mode=mode,targets=target)
         mask = self.decoder(encoder_out)
-        return mask,feature,points
+        return mask
