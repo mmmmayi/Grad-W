@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_lr0.0001_sig10_sig_ctest2_fixcen20_promse_4n2m4k"
+PROJECT_DIR = "exp/transCov_lr0.00001_sig10_sig_ntest2_ncen2_pnorm_4n2m4k"
 
 ## Config
 configs = {
@@ -33,8 +33,8 @@ configs = {
     "ratio":0.1,
     "gpu":[0],
     "optimizer": {
-        "initial_lr": 0.0001,
-        "final_lr":0.0001,
+        "initial_lr": 0.00001,
+        "final_lr":0.00001,
         "beta1": 0.0,
         "beta2": 0.9}}
 

@@ -77,15 +77,15 @@ class IRMDataset(Dataset):
                     
                 clip_input = audio.shape[0]
                 if i <self.center_num:
-                    start_point = np.random.randint(0, clip_input - 20*16000 + 1)
-                    end_point = start_point+20*16000
-                    audio = self.augment(audio[start_point:end_point],0)
+                    start_point = np.random.randint(0, clip_input - 2*16000 + 1)
+                    end_point = start_point+2*16000
+                    audio = self.augment(audio[start_point:end_point],1)
                     input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
                     center.append(input_tensor)
                 else:
                     start_point = np.random.randint(0, clip_input - 2*16000 + 1)
                     end_point = start_point+2*16000
-                    audio = self.augment(audio[start_point:end_point],0)
+                    audio = self.augment(audio[start_point:end_point],1)
                     input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
                     test.append(input_tensor)
                     target.append(torch.tensor(j))
@@ -119,7 +119,7 @@ class IRMDataset(Dataset):
     def augment(self,audio, aug_prob=1):
         if aug_prob > random.random():
             aug_type = random.randint(1, 2)
-            if aug_type == 1:
+            if aug_type == 0:
                 #add reverb
                 audio_len = audio.shape[0]
                 num = np.random.randint(0, self.rirs_num, size=1)[0]

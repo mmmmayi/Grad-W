@@ -170,7 +170,7 @@ class IRMTrainer():
         return tpr, tnr
 
     def mse_dis(self, test, target,dim=1):
-        return torch.sum(torch.pow(test-target,2),dim)
+        return torch.sqrt(torch.sum(torch.pow(test-target,2),dim))
 
     def compute_p(self, centers, test_emb, target):
         centers=centers.unsqueeze(1)
