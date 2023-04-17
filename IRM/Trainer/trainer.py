@@ -214,6 +214,15 @@ class IRMTrainer():
             centers.append(embed)
         centers=torch.stack(centers).squeeze().requires_grad_()
         return centers
+
+    def layer_CAM(self,input,target_spk, mask=None):
+        relu = nn.ReLU()
+        score,feature,mel = self.auxl(input, target_spk, 'loss', mask)
+        self.auxl.zero_grad()
+        yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
+        yb = relu(yb)*feature
+        #yb=torch.sum(yb,1)
+        return yb,mel
  
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
@@ -226,84 +235,56 @@ class IRMTrainer():
             cur_iter = (epoch - 1) * loader_size + i_batch
             scheduler.step(cur_iter)
             # Load data from trainloader
-            center, test, target = sample_batched
+            clean, noisy, target = sample_batched
             #print(Xb.device)
-            _, num_center, _, W = center.shape
-            center = center.reshape(num_center,W).cuda()
-            target = target.cuda()
+            _, B, _, W = clean.shape
+            clean = clean.reshape(B,W).cuda()
+            target = target.squeeze().cuda()
             
-            _, num_test, _, W = test.shape
-            test = test.reshape(num_test,W).cuda()
-            
-            #centers = self.generate_centers(embed_a)
+            noisy = noisy.reshape(B,W).cuda()
+            with torch.no_grad():
+                reps = self.auxl(noisy,mode='encoder')
+            mask = self.model(reps)
+            SaM_c,mel_c = self.layer_CAM(clean,target)
+            SaM_pre,mel_pre = self.layer_CAM(noisy,target,mask)
+            '''
+            for i in range(8):
+                SaM_n,mel_n = self.layer_CAM(noisy,target)
+                fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+
+                max = torch.max(mel_c[i])
+                min = torch.min(mel_c[i])
+                librosa.display.specshow(mel_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
+                librosa.display.specshow(mel_n[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
+                img2=librosa.display.specshow(mask[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] )
+                fig.colorbar(img2, ax=ax)
+                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'mel.png')
+                plt.close()
                 
-            #test_emb, feature = self.auxl(test,None,'score',None,points)
-            #self.auxl.zero_grad()
-            #target_mask = self.generate_mask_new(centers, test_emb, target, feature, feature_center).detach()
-            #feature = feature.detach().requires_grad_()
+                fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+                max = torch.max(SaM_c[i])
+                min = torch.min(SaM_c[i])                
+                librosa.display.specshow(SaM_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
+                img2 = librosa.display.specshow(SaM_n[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
+                librosa.display.specshow(SaM_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
+                #fig.colorbar(img2, ax=ax)
+                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'sam.png')
+                plt.close()
+
+            quit() 
             '''
-            if device==0:
-                for i in range(4):
-                    
-                    #mask_ = np.sort(yb[i,:,:].detach().cpu().squeeze().numpy(),axis=None).squeeze()
-                    #x = np.arange(len(mask_))
-                    #plt.plot(x, mask_, color='blue', label='predict')
-                    #plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'sort.png')
-
-                    #plt.close()
- 
-                    #temp2 = self.vari_ReLU(yb,self.ratio,device) 
-                    fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
-                    librosa.display.specshow(feature_center[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
-                    librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-                    img=librosa.display.specshow(target_mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-
-                    fig.colorbar(img, ax=ax)
-                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'varied.png')
-                    plt.close()
-                for i in range(4,8):
-                    
-                    #mask_ = np.sort(yb[i,:,:].detach().cpu().squeeze().numpy(),axis=None).squeeze()
-                    #x = np.arange(len(mask_))
-                    #plt.plot(x, mask_, color='blue', label='predict')
-                    #plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'sort.png')
-
-                    #plt.close()
- 
-                    #temp2 = self.vari_ReLU(yb,self.ratio,device) 
-                    fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
-                    librosa.display.specshow(feature[i-4,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
-                    librosa.display.specshow(feature_n[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
-                    img=librosa.display.specshow(target_mask[i,:,:].detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
-                    fig.colorbar(img, ax=ax)
-                    plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'varied.png')
-                    plt.close()
-                quit() 
-            '''
-            #inverse_mask = 1-mask
-            reps = self.auxl(center,mode='encoder')
-            logits_center = self.model(reps)
-            reps = self.auxl(test,mode='encoder')
-            logits_test = self.model(reps)
- 
-            embed_a, feature_center = self.auxl(center, mode='score',mask=logits_center)
-            centers = self.generate_centers(embed_a)           
-            #mse = self.mse(mask, SaM.float())
-            test_emb, feature = self.auxl(test,None,'score',logits_test)
-            #p = torch.exp(0-self.mse_dis(test_emb,sim_center))/(torch.exp(0-self.mse_dis(test_emb,sim_center))+torch.exp(0-self.mse_dis(test_emb,dissim_center)))
-            #print(p)
-            p = self.compute_p(centers,test_emb,target)
-            loss_drct = torch.mean(0-torch.log(p))
             #logits = logits.reshape(logits.shape[0],-1)
             #target_mask = target_mask.reshape(target_mask.shape[0],-1)
-            train_loss = loss_drct
+            mse_loss = self.mse(SaM_pre, SaM_c)/B
+            train_loss = mse_loss
             if torch.isnan(train_loss) or torch.isinf(train_loss):
-                torch.save(center, '/data_a11/mayi/project/SIP/IRM/exp/debug/center.pt')
-                torch.save(test,'/data_a11/mayi/project/SIP/IRM/exp/debug/test.pt')
+                torch.save(clean, '/data_a11/mayi/project/SIP/IRM/exp/debug/clean.pt')
+                torch.save(noisy,'/data_a11/mayi/project/SIP/IRM/exp/debug/noisy.pt')
+                torch.save(target, '/data_a11/mayi/project/SIP/IRM/exp/debug/target.pt')
                 state_dict = self.model.state_dict()
                 torch.save(state_dict,'/data_a11/mayi/project/SIP/IRM/exp/debug/model.pt')
             #running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
-            running_score += loss_drct.item()
+            running_mse += mse_loss.item()
             i_batch += 1
 
             self.optimizer.zero_grad()
@@ -318,7 +299,7 @@ class IRMTrainer():
             self.optimizer.step()
             torch.cuda.empty_cache()
             if device == 0:
-                self.logger.info("Loss of minibatch {}-th/{}: {}, lr:{}".format(i_batch+diff_batch, len(self.train_dataloader), train_loss.item(), self.optimizer.param_groups[0]['lr']))
+                self.logger.info("Loss of minibatch {}-th/{}: {}, lr:{}".format(i_batch, len(self.train_dataloader), train_loss.item(), self.optimizer.param_groups[0]['lr']))
         #if epoch%10 ==0:
             #self.optimizer.param_groups[0]['lr'] = self.optimizer.param_groups[0]['lr']*0.8
         #if device==0:
@@ -326,9 +307,9 @@ class IRMTrainer():
                 #torch.save(self.model, f"{self.PROJECT_DIR}/models/model_{epoch}.pt")
         if device ==0:
             #ave_cos_loss = running_cos / i_batch
-            ave_score_loss = running_score / i_batch
+            ave_mse_loss = running_mse / i_batch
             #self.writer.add_scalar('Train/cos', ave_cos_loss, epoch)
-            self.writer.add_scalar('Train/score', ave_score_loss, epoch)
+            self.writer.add_scalar('Train/mse', ave_mse_loss, epoch)
 
             self.logger.info("Epoch:{}".format(epoch)) 
             self.logger.info("*" * 50)
@@ -340,52 +321,35 @@ class IRMTrainer():
 
     def validation_epoch(self, epoch, weight, device):
         start_time = time.time()
-        running_cos, running_score, running_n, running_mse_loss, running_diff_loss, running_tnr_loss, running_tpr_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        running_cos, running_score, running_n, running_mse, running_diff_loss, running_tnr_loss, running_tpr_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         i_batch,diff_batch = 0,0
         relu = nn.ReLU()
         
         
         for sample_batched in tqdm(self.validation_dataloader):
-            center, test, target = sample_batched
-            target = target.cuda()
-            _, num_center, _, W = center.shape
-            center = center.reshape(num_center,W).cuda()
+            clean, noisy, target = sample_batched
+            target = target.squeeze().cuda()
+            _, B, _, W = clean.shape
+            clean = clean.reshape(B,W).cuda()
             
-            _, num_test, _, W = test.shape
-            test = test.reshape(num_test,W).cuda()
+            noisy = noisy.reshape(B,W).cuda()
             with torch.no_grad():
-                reps = self.auxl(center,mode='encoder')
-                logits_center = self.model(reps)
-                reps = self.auxl(test,mode='encoder')
-                logits_test = self.model(reps)
+                reps = self.auxl(noisy,mode='encoder')
+            mask = self.model(reps)
             
-            #embed_a, feature_center = self.auxl(center,mode='score',mask=None)
-            #centers = self.generate_centers(embed_a)
-
-            #test_emb, feature = self.auxl(test,None,'score',None)
-            #self.auxl.zero_grad()
-            #target_mask = self.generate_mask_new(centers, test_emb, target, feature, feature_center).detach()
-            with torch.no_grad():
-                embed_a, feature_center = self.auxl(center, mode='score',mask=logits_center)
-            centers = self.generate_centers(embed_a)
-            with torch.no_grad():
-                test_emb, feature = self.auxl(test,None,'score',logits_test)
-            
-            p = self.compute_p(centers,test_emb,target)
-            loss_drct = torch.mean(0-torch.log(p))
-            #logits = logits.reshape(logits.shape[0],-1)
-            #target_mask = target_mask.reshape(logits.shape[0],-1)
-
+            SaM_c,mel_c = self.layer_CAM(clean,target)
+            SaM_pre,mel_pre = self.layer_CAM(noisy,target,mask)
+            mse_loss = self.mse(SaM_pre, SaM_c)/B
             #running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
-            running_score += loss_drct.item()
+            running_mse += mse_loss.item()
             i_batch += 1
             torch.cuda.empty_cache()
         if device==0:    
             #ave_cos_loss = running_cos / i_batch
-            ave_score_loss = running_score / i_batch
+            ave_mse_loss = running_mse / i_batch
             end_time = time.time()
             #self.writer.add_scalar('Validation/cos', ave_cos_loss, epoch)
-            self.writer.add_scalar('Validation/score', ave_score_loss, epoch)
+            self.writer.add_scalar('Validation/mse', ave_mse_loss, epoch)
             self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
             self.logger.info("Epoch:{}".format(epoch))
 

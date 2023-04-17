@@ -403,6 +403,17 @@ class IRMApplier():
     def vari_sigmoid(self,x,a):
         return 1/(1+(-a*x).exp())
     #@torch.no_grad()
+
+    def layer_CAM(self,input,target_spk, mask=None):
+        relu = nn.ReLU()
+        score,feature,mel = self.auxl(input, target_spk, 'loss', mask)
+        self.auxl.zero_grad()
+        yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
+        yb = relu(yb)*feature
+        yb=torch.sum(yb,1)
+        return yb,mel
+
+
     def apply(self):
         eval_path = '/data_a11/mayi/dataset/IRM/mix'
         eval_list = '/data_a11/mayi/project/ECAPATDNN-analysis/sub_vox2.txt'
@@ -427,35 +438,49 @@ class IRMApplier():
             Xb = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             audio, _  = soundfile.read(os.path.join(clean_path, num,file))
             clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
+            with torch.no_grad():
+                reps = self.auxl(Xb,mode='encoder')
+
             #feature = torch.load('/data_a11/mayi/project/SIP/IRM/exp/debug/feature.pt')
-            mask,feature, points = self.model(Xb,'apply')
-            _,feature_c = self.auxl(clean,target_spk,'score',None,points)
+            mask = self.model(reps)
+            SaM_c, mel_c = self.layer_CAM(clean,target_spk)
+            SaM_pre, mel_pre = self.layer_CAM(Xb,target_spk,mask)
+            SaM_n, mel_n = self.layer_CAM(Xb,target_spk)
             #accs += acc
             #continue
-                        #mask = mask[:,:,:frame_len]
+            
 
             if not os.path.exists(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2])):
                 os.makedirs(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2]))
-            mask_ = np.sort(mask.detach().cpu().squeeze().numpy(),axis=None).squeeze()
-            x = np.arange(len(mask_))
-            plt.plot(x, mask_, color='blue', label='predict')
-            plt.legend()
-            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sort.png')))
-
-            plt.close()
             #continue
             fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
             #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
+            max = torch.max(mel_c)
+            min = torch.min(mel_c)
+            librosa.display.specshow(mel_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
-            librosa.display.specshow(feature_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
-
-            librosa.display.specshow(feature.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1])
+            librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
             img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
             fig.colorbar(img, ax=ax)
             #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
 
-            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','.png')))
+            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','mask.png')))
             plt.close()
+            fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+            #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
+            max = torch.max(SaM_c)
+            min = torch.min(SaM_c)
+            librosa.display.specshow(SaM_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+
+            librosa.display.specshow(SaM_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
+            img = librosa.display.specshow(SaM_pre.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2], vmin=min,vmax=max)
+            #fig.colorbar(img, ax=ax)
+            #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
+
+            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sam.png')))
+            plt.close()
+
+
         print('accuracy',accs/len(setfiles))
 
 

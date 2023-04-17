@@ -235,7 +235,7 @@ class Speaker_resnet(nn.Module):
             x = (self.Mel_scale(x)+1e-6).log()
 
         if mask is not None:
-            x = x+(mask+0.5).log()
+            x = x+(mask+1e-6).log()
             #x = (self.Spec(x)+1e-8)
             #x = (self.Mel_scale(x)+1e-8).log()
         #print(x.shape) #[128,80,1002]
@@ -269,9 +269,9 @@ class Speaker_resnet(nn.Module):
         if mode=='score':
             return embed_a, feature
         elif mode == 'encoder':
-            return [out1,out2,out3,out4,embed_a]
+            return [out,out1,out2,out3,out4,embed_a]
         elif mode == 'apply':
-            return [out1,out2,out3,out4,embed_a],feature
+            return [out, out1,out2,out3,out4,embed_a],feature
         elif mode == 'reference':
             return embed_a
         elif mode in ['loss','acc']:
@@ -280,7 +280,7 @@ class Speaker_resnet(nn.Module):
             if mode =='acc':
                  return acc(score.detach(), targets.detach())
             else:
-                return score
+                return result, out4,feature
 def acc(output,target):
    
     #output = output.reshape(-1)
@@ -347,13 +347,17 @@ def transConv(in_channels, out_channels, num_blocks, stride = 2, follow_with_bn=
 class UpSampleBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, in_channels, out_channels,passthrough_channels, num_blocks, stride=1):
+    def __init__(self, in_channels, out_channels,passthrough_channels, num_blocks, stride=1, up=True):
         super(UpSampleBlock, self).__init__()
-        self.upsampler = SubpixelUpsampler(in_channels=in_channels,out_channels=out_channels, num_blocks = num_blocks)
+        if up==True:
+            self.upsampler = SubpixelUpsampler(in_channels=in_channels,out_channels=out_channels, num_blocks = num_blocks)
         self.follow_up = Block(out_channels+passthrough_channels,out_channels)
         self.norm = nn.InstanceNorm2d(out_channels)
-    def forward(self, x, passthrough):
-        out = self.upsampler(x)
+    def forward(self, x, passthrough,up=True):
+        if up==True:
+            out = self.upsampler(x)
+        else:
+            out = x
         
         out = torch.cat((out,self.norm(passthrough)), 1)
         return self.follow_up(out)
@@ -386,10 +390,12 @@ class Block(nn.Module):
 class decoder(nn.Module):
     def __init__(self,scale):
         super(decoder, self).__init__()
-        num_blocks = [3,6,4,3]
+        num_blocks = [1,6,4,3]
+        
         self.uplayer4 = UpSampleBlock(in_channels=256,out_channels=128,passthrough_channels=128, num_blocks=num_blocks[-1] )
         self.uplayer3 = UpSampleBlock(in_channels=128,out_channels=64,passthrough_channels=64,num_blocks=num_blocks[-2])
         self.uplayer2 = UpSampleBlock(in_channels=64,out_channels=32,passthrough_channels=32,num_blocks=num_blocks[-3])
+        self.uplayer1 = UpSampleBlock(in_channels=32,out_channels=32,passthrough_channels=32,num_blocks=num_blocks[-4], up=False)
         self.saliency_chans = nn.Conv2d(32,1,kernel_size=1,bias=False)
         self.sig = nn.Sigmoid()
         self.tanh = nn.Tanh()
@@ -409,7 +415,8 @@ class decoder(nn.Module):
         upsample3 = self.uplayer4(scale4, encoder_out[-3])
         upsample2 = self.uplayer3(upsample3, encoder_out[-4])
         upsample1 = self.uplayer2(upsample2, encoder_out[-5])
-        saliency_chans = self.saliency_chans(upsample1)
+        upsample0 = self.uplayer1(upsample1, encoder_out[-6], False)
+        saliency_chans = self.saliency_chans(upsample0)
         #logits = torch.cat((-saliency_chans/self.scale, saliency_chans/self.scale),1)
         #a = torch.abs(saliency_chans[:,0,:,:])
         #b = torch.abs(saliency_chans[:,1,:,:])

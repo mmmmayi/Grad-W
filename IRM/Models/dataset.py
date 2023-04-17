@@ -23,6 +23,7 @@ class IRMDataset(Dataset):
     def __init__(self, path, spk,  batch_size, dur, path_sorted=None, sub=None, sampling_rate=16000, mode="train", center_num=4, test_num=2,num_spk=2):
         super().__init__()
         seed=0
+        self.dur = dur
         self.center_num = int(center_num)
         self.test_num = int(test_num)
         self.num_spk = int(num_spk)
@@ -36,11 +37,18 @@ class IRMDataset(Dataset):
         if self.mode in ['train','validation']:
             path,self.spk_utt = sort(path, path_sorted, spk,dur, sub) ###todo, data contains paths
 
-            self.spk_utt = generate(self.spk_utt,center_num,test_num)
-            self.all_spks = list(self.spk_utt.keys())
+            self.data,self.spks = generate(path)
         index = -1
-        self.batch_data = self.all_spks
+        self.batch_data = []
+        number_of_minibathes = math.ceil(len(self.data) / batch_size)
         self.labels = torch.load('../lst/resnet_speaker.pt')
+        for _ in range(number_of_minibathes):
+            if index>=len(self.data)-batch_size:
+                break
+            self.batch_data.append([])
+            for _ in range(batch_size):
+                index = index+1
+                self.batch_data[-1].append([self.data[index],self.spks[index]])
         with open ('/data_a11/mayi/dataset/musan/file_list', 'r') as f:
             self.noise_list=f.readlines()
         self.noise_num= len (self.noise_list)
@@ -59,38 +67,23 @@ class IRMDataset(Dataset):
         self.batch_data = temp_data
 
     def __getitem__(self, idx):
-        center, test, target = [], [], []
-        idx = self.batch_data[idx]
-        spks=[idx]
-        while len(spks)<self.num_spk:
-            neg_idx=choice(self.all_spks)
-            if neg_idx not in spks:
-                spks.append(neg_idx)
-
-        j = 0
-        for spk in spks:
-            utt_list = self.spk_utt[spk]
-            utt_temp = random.sample(utt_list, self.center_num+self.test_num)
-            for i in range(len(utt_temp)):
-                
-                audio, _  = soundfile.read(utt_temp[i])
-                    
-                clip_input = audio.shape[0]
-                if i <self.center_num:
-                    start_point = np.random.randint(0, clip_input - 2*16000 + 1)
-                    end_point = start_point+2*16000
-                    audio = self.augment(audio[start_point:end_point],1)
-                    input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
-                    center.append(input_tensor)
-                else:
-                    start_point = np.random.randint(0, clip_input - 2*16000 + 1)
-                    end_point = start_point+2*16000
-                    audio = self.augment(audio[start_point:end_point],1)
-                    input_tensor = torch.FloatTensor(np.stack([audio],axis=0))
-                    test.append(input_tensor)
-                    target.append(torch.tensor(j))
-            j = j+1
-        return torch.stack(center), torch.stack(test),  torch.stack(target)
+        clean, noisy, target = [], [], []
+        for pairs in self.batch_data[idx]:
+            audio, _  = soundfile.read(pairs[0])
+            spk = pairs[1]
+            target_category = torch.tensor(int(self.labels[spk]))
+        
+            clip_input = audio.shape[0]
+            start_point = np.random.randint(0, clip_input - self.dur*16000 + 1)
+            end_point = start_point+self.dur*16000
+            clean_audio = audio[start_point:end_point]
+            noisy_audio = self.augment(audio[start_point:end_point],1)
+            clean_tensor = torch.FloatTensor(np.stack([clean_audio],axis=0))
+            noisy_tensor = torch.FloatTensor(np.stack([noisy_audio],axis=0))
+            clean.append(clean_tensor)
+            noisy.append(noisy_tensor)
+            target.append(target_category)
+        return torch.stack(clean), torch.stack(noisy),  torch.stack(target)
         '''
             spk = pairs[0].split('/')[-1].split('-')[0]
             target_category = torch.tensor(int(self.labels[spk]))
@@ -219,7 +212,7 @@ def sort(path, path_sorted, spk_list,dur, sub):
             spk = spk_i.split('/')[1].split('-')[0]
             if spk not in spk_list:
                 continue
-            if utt_dict[spk_i]<20*16000:
+            if utt_dict[spk_i]<dur*16000:
                 continue
             utts_temp.append([spk_i, utt_dict[spk_i]])
             if spk not in spk_utt:
@@ -235,21 +228,16 @@ def sort(path, path_sorted, spk_list,dur, sub):
     print('the shortest one:{}, the longest one:{}'.format(sort_utts[0][1],sort_utts[-1][1]))
     return utts, spk_utt
 
-def generate(utt_dict,center_num,test_num):
-    new_dict={}
-    for key in utt_dict:
-        if len(utt_dict[key])<int(center_num)+int(test_num):
-            continue
-        for i in utt_dict[key]:
-            idx = i.split('/')[0]
-            spk = i.split('/')[1].split('-')[0]
-            utt = i.split('/')[1]
-            if key in new_dict:
-                new_dict[key].append(os.path.join('/data_a11/mayi/dataset/voxceleb_asvtorch/VoxCeleb2/dev/acc_new',idx,spk,utt))
-            else:
-                new_dict[key]=[os.path.join('/data_a11/mayi/dataset/voxceleb_asvtorch/VoxCeleb2/dev/acc_new',idx,spk,utt)]
-  
-    return  new_dict
+def generate(path):
+    data,label = [],[]
+    for i in path:
+        idx = i.split('/')[0]
+        spk = i.split('/')[1].split('-')[0]
+        utt = i.split('/')[1]
+        
+        data.append(os.path.join('/data_a11/mayi/dataset/voxceleb_asvtorch/VoxCeleb2/dev/acc_new/',idx,spk,utt))
+        label.append(spk)
+    return  data,label
 
 def generate_test(path, mode, spk_list=None):
     f = open(path,'r')

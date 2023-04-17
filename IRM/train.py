@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_lr0.00001_sig10_sig_ntest2_ncen2_pnorm_4n2m4k"
+PROJECT_DIR = "exp/transCov_SaM_lr0.0001_mse_v2"
 
 ## Config
 configs = {
@@ -23,18 +23,18 @@ configs = {
     "num_spk": 2,
     "w_n": 0.01,
     "scale":8,  
-    "num_epochs": 500,
+    "num_epochs": 50,
     "th": 0.05,
-    "batchsize": 32,
+    "batchsize": 64,
     "center_num": '4',
     "test_num":'4',
-    "dur": 20,
+    "dur": 2,
     "resume_epoch":None,
     "ratio":0.1,
     "gpu":[0],
     "optimizer": {
-        "initial_lr": 0.00001,
-        "final_lr":0.00001,
+        "initial_lr": 0.0001,
+        "final_lr": 0.0001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     
     #optimizer = torch.optim.Adadelta(nnet.parameters(), lr=configs["optimizer"]["lr"])
     BCE_loss = nn.BCELoss()
-    MSE_loss = nn.MSELoss()
+    MSE_loss = nn.MSELoss(reduction = 'sum')
     COS_loss = nn.CosineSimilarity(dim=1)
     CE_loss = nn.CrossEntropyLoss()
     #loss_fn = nn.L1Loss(reduction='sum')
