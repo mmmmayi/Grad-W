@@ -244,6 +244,8 @@ class IRMTrainer():
             noisy = noisy.reshape(B,W).cuda()
             with torch.no_grad():
                 reps = self.auxl(noisy,mode='encoder')
+                mask = self.model(reps)
+                reps = self.auxl(noisy,mode='encoder',mask=mask)
             mask = self.model(reps)
             SaM_c,mel_c = self.layer_CAM(clean,target)
             SaM_pre,mel_pre = self.layer_CAM(noisy,target,mask)

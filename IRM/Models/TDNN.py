@@ -269,9 +269,9 @@ class Speaker_resnet(nn.Module):
         if mode=='score':
             return embed_a, feature
         elif mode == 'encoder':
-            return [out,out1,out2,out3,out4,embed_a]
+            return [out1,out2,out3,out4,embed_a]
         elif mode == 'apply':
-            return [out, out1,out2,out3,out4,embed_a],feature
+            return [out1,out2,out3,out4,embed_a],feature
         elif mode == 'reference':
             return embed_a
         elif mode in ['loss','acc']:
@@ -395,7 +395,6 @@ class decoder(nn.Module):
         self.uplayer4 = UpSampleBlock(in_channels=256,out_channels=128,passthrough_channels=128, num_blocks=num_blocks[-1] )
         self.uplayer3 = UpSampleBlock(in_channels=128,out_channels=64,passthrough_channels=64,num_blocks=num_blocks[-2])
         self.uplayer2 = UpSampleBlock(in_channels=64,out_channels=32,passthrough_channels=32,num_blocks=num_blocks[-3])
-        self.uplayer1 = UpSampleBlock(in_channels=32,out_channels=32,passthrough_channels=32,num_blocks=num_blocks[-4], up=False)
         self.saliency_chans = nn.Conv2d(32,1,kernel_size=1,bias=False)
         self.sig = nn.Sigmoid()
         self.tanh = nn.Tanh()
@@ -415,8 +414,7 @@ class decoder(nn.Module):
         upsample3 = self.uplayer4(scale4, encoder_out[-3])
         upsample2 = self.uplayer3(upsample3, encoder_out[-4])
         upsample1 = self.uplayer2(upsample2, encoder_out[-5])
-        upsample0 = self.uplayer1(upsample1, encoder_out[-6], False)
-        saliency_chans = self.saliency_chans(upsample0)
+        saliency_chans = self.saliency_chans(upsample1)
         #logits = torch.cat((-saliency_chans/self.scale, saliency_chans/self.scale),1)
         #a = torch.abs(saliency_chans[:,0,:,:])
         #b = torch.abs(saliency_chans[:,1,:,:])
