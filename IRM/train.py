@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_SaM_ilr0.0001_elr1e-8_mse_updateRep"
+PROJECT_DIR = "exp/transCov_SaM_ilr0.0001_elr1e-8_mse_s"
 
 ## Config
 configs = {
