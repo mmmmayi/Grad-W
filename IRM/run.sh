@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o transCov_SaM_ilr0.0001_elr1e-8_mse_s_overall_8s.out
+#SBATCH -o transCov_SaM_ilr0.0001_elr1e-8_mse_overall.out
 #SBATCH --gres=gpu:1
 #SBATCH -w ttnusa11
 #SBATCH --cpus-per-task=8

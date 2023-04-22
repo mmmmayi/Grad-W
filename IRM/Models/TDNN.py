@@ -390,7 +390,7 @@ class Block(nn.Module):
 class decoder(nn.Module):
     def __init__(self,scale):
         super(decoder, self).__init__()
-        num_blocks = [1,1,1,1]
+        num_blocks = [1,6,3,4]
         
         self.uplayer4 = UpSampleBlock(in_channels=256,out_channels=128,passthrough_channels=128, num_blocks=num_blocks[-1] )
         self.uplayer3 = UpSampleBlock(in_channels=128,out_channels=64,passthrough_channels=64,num_blocks=num_blocks[-2])
