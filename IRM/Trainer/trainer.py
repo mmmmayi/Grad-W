@@ -221,7 +221,7 @@ class IRMTrainer():
         self.auxl.zero_grad()
         yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
         yb = relu(yb)*feature
-        yb=torch.sum(yb,1)
+        #yb=torch.sum(yb,1)
         return yb,mel
  
 
