@@ -94,7 +94,7 @@ class ArcMarginProduct(nn.Module):
         self.mmm = 1.0 + math.cos(math.pi - margin)
     def forward(self, input, label, mode='score'):
         cosine = F.linear(F.normalize(input), F.normalize(self.weight))
-        #return cosine*self.scale
+        return cosine*self.scale
         sine = torch.sqrt(1.0 - torch.pow(cosine, 2))
         phi = cosine * self.cos_m - sine * self.sin_m
         if self.easy_margin:
@@ -276,11 +276,13 @@ class Speaker_resnet(nn.Module):
             return embed_a
         elif mode in ['loss','acc']:
             score = self.projection(embed_a, targets)
+            if targets is None:
+                targets = torch.argmax(score, dim=1)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
             if mode =='acc':
                  return acc(score.detach(), targets.detach())
             else:
-                return result, out4,feature
+                return result, out4,feature,targets
 def acc(output,target):
    
     #output = output.reshape(-1)

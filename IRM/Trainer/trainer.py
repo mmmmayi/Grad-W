@@ -215,14 +215,14 @@ class IRMTrainer():
         centers=torch.stack(centers).squeeze().requires_grad_()
         return centers
 
-    def layer_CAM(self,input,target_spk, mask=None):
+    def layer_CAM(self,input,target_spk=None, mask=None):
         relu = nn.ReLU()
-        score,feature,mel = self.auxl(input, target_spk, 'loss', mask)
+        score,feature,mel,target = self.auxl(input, target_spk, 'loss', mask)
         self.auxl.zero_grad()
         yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
         yb = relu(yb)*feature
         yb=torch.sum(yb,1)
-        return yb,mel
+        return yb,mel,target
  
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
@@ -245,8 +245,8 @@ class IRMTrainer():
             with torch.no_grad():
                 reps = self.auxl(noisy,mode='encoder')
             mask = self.model(reps)
-            SaM_c,mel_c = self.layer_CAM(clean,target)
-            SaM_pre,mel_pre = self.layer_CAM(noisy,target,mask)
+            SaM_c,mel_c,target = self.layer_CAM(clean)
+            SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)
             '''
             for i in range(8):
                 SaM_n,mel_n = self.layer_CAM(noisy,target)
@@ -337,8 +337,8 @@ class IRMTrainer():
                 reps = self.auxl(noisy,mode='encoder')
             mask = self.model(reps)
             
-            SaM_c,mel_c = self.layer_CAM(clean,target)
-            SaM_pre,mel_pre = self.layer_CAM(noisy,target,mask)
+            SaM_c,mel_c,target = self.layer_CAM(clean)
+            SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)
             mse_loss = self.mse(SaM_pre, SaM_c.detach())/B
             #running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
             running_mse += mse_loss.item()
