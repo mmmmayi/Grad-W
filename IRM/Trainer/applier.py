@@ -404,14 +404,14 @@ class IRMApplier():
         return 1/(1+(-a*x).exp())
     #@torch.no_grad()
 
-    def layer_CAM(self,input,target_spk, mask=None):
+    def layer_CAM(self,input,target_spk=None, mask=None):
         relu = nn.ReLU()
-        score,feature,mel = self.auxl(input, target_spk, 'loss', mask)
+        score,feature,mel,target = self.auxl(input, target_spk, 'loss', mask)
         self.auxl.zero_grad()
         yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
         yb = relu(yb)*feature
         yb=torch.sum(yb,1)
-        return yb,mel
+        return yb,mel,target
 
 
     def apply(self):
@@ -444,11 +444,14 @@ class IRMApplier():
             #feature = torch.load('/data_a11/mayi/project/SIP/IRM/exp/debug/feature.pt')
             mask = self.model(reps)
             acc = self.auxl(Xb, target_spk, 'acc', mask)
-            accs +=acc
-            continue
-            SaM_c, mel_c = self.layer_CAM(clean,target_spk)
-            SaM_pre, mel_pre = self.layer_CAM(Xb,target_spk,mask)
-            SaM_n, mel_n = self.layer_CAM(Xb,target_spk)
+            #accs +=acc
+            print(acc)
+            if acc.item()==1:
+                continue
+            print('wrong')
+            SaM_c, mel_c, target = self.layer_CAM(clean)
+            SaM_pre, mel_pre,_ = self.layer_CAM(Xb,target,mask)
+            SaM_n, mel_n,_ = self.layer_CAM(Xb,target)
             #accs += acc
             #continue
             
