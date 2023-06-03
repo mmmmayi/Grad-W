@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o transCov_sclean_0.1_overall_detachC_noLM_relu.out
+#SBATCH -o transCov_sclean_0.1_overall_detachC_noLM_l2.out
 #SBATCH --gres=gpu:1
 #SBATCH -w ttnusa11
 #SBATCH --cpus-per-task=8
