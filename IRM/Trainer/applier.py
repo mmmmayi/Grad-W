@@ -443,6 +443,9 @@ class IRMApplier():
 
             #feature = torch.load('/data_a11/mayi/project/SIP/IRM/exp/debug/feature.pt')
             mask = self.model(reps)
+            acc = self.auxl(Xb, target_spk, 'acc', mask)
+            accs +=acc
+            continue
             SaM_c, mel_c = self.layer_CAM(clean,target_spk)
             SaM_pre, mel_pre = self.layer_CAM(Xb,target_spk,mask)
             SaM_n, mel_n = self.layer_CAM(Xb,target_spk)
