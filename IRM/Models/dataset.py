@@ -67,7 +67,7 @@ class IRMDataset(Dataset):
         self.batch_data = temp_data
 
     def __getitem__(self, idx):
-        clean, noisy, target = [], [], []
+        clean, noisy, noise, target = [], [], [],[]
         for pairs in self.batch_data[idx]:
             audio, _  = soundfile.read(pairs[0])
             spk = pairs[1]
@@ -77,13 +77,15 @@ class IRMDataset(Dataset):
             start_point = np.random.randint(0, clip_input - self.dur*16000 + 1)
             end_point = start_point+self.dur*16000
             clean_audio = audio[start_point:end_point]
-            noisy_audio = self.augment(audio[start_point:end_point],1)
+            noisy_audio,noise_audio = self.augment(audio[start_point:end_point],1)
+            noise_tensor = torch.FloatTensor(np.stack([noise_audio],axis=0))
             clean_tensor = torch.FloatTensor(np.stack([clean_audio],axis=0))
             noisy_tensor = torch.FloatTensor(np.stack([noisy_audio],axis=0))
             clean.append(clean_tensor)
+            noise.append(noise_tensor)
             noisy.append(noisy_tensor)
             target.append(target_category)
-        return torch.stack(clean), torch.stack(noisy),  torch.stack(target)
+        return torch.stack(clean), torch.stack(noisy),  torch.stack(target), torch.stack(noise)
         '''
             spk = pairs[0].split('/')[-1].split('-')[0]
             target_category = torch.tensor(int(self.labels[spk]))
@@ -141,7 +143,7 @@ class IRMDataset(Dataset):
             out_audio = out_audio / (np.max(np.abs(out_audio)) + 1e-4)
         else:
             out_audio = audio
-        return out_audio
+        return out_audio, noise
 
     def generate_noise(self, audio):
         num = np.random.randint(0, self.noise_num, size=1)[0]

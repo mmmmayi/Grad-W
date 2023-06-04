@@ -240,28 +240,29 @@ class IRMTrainer():
             cur_iter = (epoch - 1) * loader_size + i_batch
             scheduler.step(cur_iter)
             # Load data from trainloader
-            clean, noisy, target = sample_batched
+            clean, noisy, target, noise = sample_batched
             #print(Xb.device)
             _, B, _, W = clean.shape
             clean = clean.reshape(B,W).cuda()
             target = target.squeeze().cuda()
-            
+            noise = noise.reshape(B,W).cuda() 
             noisy = noisy.reshape(B,W).cuda()
             with torch.no_grad():
                 reps = self.auxl(noisy,mode='encoder')
             mask = self.model(reps)
             SaM_c,mel_c,target = self.layer_CAM(clean)
             SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)
+            SaM_n, mel_n, _ = self.layer_CAM(noise, target)
             '''
             for i in range(8):
-                SaM_n,mel_n = self.layer_CAM(noisy,target)
+                
                 fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
 
                 max = torch.max(mel_c[i])
                 min = torch.min(mel_c[i])
                 librosa.display.specshow(mel_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
                 librosa.display.specshow(mel_n[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
-                img2=librosa.display.specshow(mask[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] )
+                img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
                 fig.colorbar(img2, ax=ax)
                 plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'mel.png')
                 plt.close()
@@ -280,7 +281,7 @@ class IRMTrainer():
             '''
             #logits = logits.reshape(logits.shape[0],-1)
             #target_mask = target_mask.reshape(target_mask.shape[0],-1)
-            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B-self.l2_norm(SaM_pre)
+            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B-self.mse(SaM_pre,SaM_n.detach())/B
             train_loss = mse_loss
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(clean, '/data_a11/mayi/project/SIP/IRM/exp/debug/clean.pt')
@@ -333,11 +334,11 @@ class IRMTrainer():
         
         
         for sample_batched in tqdm(self.validation_dataloader):
-            clean, noisy, target = sample_batched
+            clean, noisy, target, noise = sample_batched
             target = target.squeeze().cuda()
             _, B, _, W = clean.shape
             clean = clean.reshape(B,W).cuda()
-            
+            noise = noise.reshape(B,W).cuda()
             noisy = noisy.reshape(B,W).cuda()
             with torch.no_grad():
                 reps = self.auxl(noisy,mode='encoder')
@@ -345,8 +346,8 @@ class IRMTrainer():
             
             SaM_c,mel_c,target = self.layer_CAM(clean)
             SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)
- 
-            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B-self.l2_norm(SaM_pre)
+            SaM_n, mel_n, _ = self.layer_CAM(noise, target)
+            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B-self.mse(SaM_pre,SaM_n.detach())/B
             #running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
             running_mse += mse_loss.item()
             i_batch += 1
