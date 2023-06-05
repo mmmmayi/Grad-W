@@ -281,7 +281,7 @@ class IRMTrainer():
             '''
             #logits = logits.reshape(logits.shape[0],-1)
             #target_mask = target_mask.reshape(target_mask.shape[0],-1)
-            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B-self.mse(SaM_pre,SaM_n.detach())/B
+            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B-0.5*self.mse(SaM_pre,SaM_n.detach())/B
             train_loss = mse_loss
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(clean, '/data_a11/mayi/project/SIP/IRM/exp/debug/clean.pt')
@@ -347,7 +347,7 @@ class IRMTrainer():
             SaM_c,mel_c,target = self.layer_CAM(clean)
             SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)
             SaM_n, mel_n, _ = self.layer_CAM(noise, target)
-            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B-self.mse(SaM_pre,SaM_n.detach())/B
+            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B-0.5*self.mse(SaM_pre,SaM_n.detach())/B
             #running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
             running_mse += mse_loss.item()
             i_batch += 1
