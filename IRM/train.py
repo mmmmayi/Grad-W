@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_sclean_0.1_overall_detachC_noLM_encoder"
+PROJECT_DIR = "exp/transCov_sclean_0.001_overall_detachC_noLM_encoder"
 
 ## Config
 configs = {
@@ -33,8 +33,8 @@ configs = {
     "ratio":0.1,
     "gpu":[0],
     "optimizer": {
-        "initial_lr": 0.1,
-        "final_lr": 0.1,
+        "initial_lr": 0.001,
+        "final_lr": 0.001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
         print('Number of trainable parameters: {}'.format(total_params))
     #optimizer = torch.optim.Adam(nnet.decoder.parameters(), lr=configs["optimizer"]["lr"])
-    optimizer = torch.optim.Adam(list(nnet_ddp.module.decoder.parameters()),lr=configs["optimizer"]["initial_lr"])
+    optimizer = torch.optim.Adam(list(nnet_ddp.module.parameters()),lr=configs["optimizer"]["initial_lr"])
     loader_size = len(train_irm_dataset)//world_size
     print(loader_size)
     scheduler = ExponentialDecrease(optimizer,
