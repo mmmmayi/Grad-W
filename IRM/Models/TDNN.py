@@ -151,6 +151,7 @@ class Speaker_resnet(nn.Module):
                  feat_dim=80,
                  embed_dim=256,
                  pooling_func='TSTP',
+                 seg=True
                  ):
         super(Speaker_resnet, self).__init__()
         block = BasicBlock
@@ -189,7 +190,8 @@ class Speaker_resnet(nn.Module):
 
         self.n_stats = 1 if pooling_func == 'TAP' or pooling_func == "TSDP" else 2
         self.pool = TSTP()
-        self.seg_1 = nn.Linear(self.stats_dim * block.expansion * self.n_stats,
+        if seg:
+            self.seg_1 = nn.Linear(self.stats_dim * block.expansion * self.n_stats,
                                embed_dim)
         if self.two_emb_layer:
             self.seg_bn_1 = nn.BatchNorm1d(embed_dim, affine=False)
@@ -253,6 +255,8 @@ class Speaker_resnet(nn.Module):
         out3 = self.layer3(out2)
         #print('layer3 shape:',out3.shape)#[B,128,20,T/4]
         out4 = self.layer4(out3)
+        if mode == 'encoder':
+            return [out1,out2,out3,out4]
         #print('layer4 shape:',out4.shape)#[B,256,10,T/8]
         #frame = out4.requires_grad_()
         stats = self.pool(out4)
@@ -408,14 +412,14 @@ class decoder(nn.Module):
         return mask
 
     def forward(self,encoder_out):
-        em = encoder_out[-1]
-        scale4 = encoder_out[-2]
+        #em = encoder_out[-1]
+        scale4 = encoder_out[-1]
         #act = torch.sum(scale4*em.view(-1, 256, 1, 1), 1, keepdim=True)
         #th = torch.sigmoid(act)
         #scale4 = scale4*th
-        upsample3 = self.uplayer4(scale4, encoder_out[-3])
-        upsample2 = self.uplayer3(upsample3, encoder_out[-4])
-        upsample1 = self.uplayer2(upsample2, encoder_out[-5])
+        upsample3 = self.uplayer4(scale4, encoder_out[-2])
+        upsample2 = self.uplayer3(upsample3, encoder_out[-3])
+        upsample1 = self.uplayer2(upsample2, encoder_out[-4])
         saliency_chans = self.saliency_chans(upsample1)
         #logits = torch.cat((-saliency_chans/self.scale, saliency_chans/self.scale),1)
         #a = torch.abs(saliency_chans[:,0,:,:])
@@ -429,8 +433,7 @@ class multi_TDNN(nn.Module):
         super(multi_TDNN, self).__init__()
         
         self.decoder = decoder(scale)
-
-        #self.speaker = Speaker_resnet()
+        self.speaker = Speaker_resnet(seg=False)
         #for name in self.speaker.parameters():
             #print(name)
 
@@ -443,7 +446,8 @@ class multi_TDNN(nn.Module):
                 #print('param',param)
             #p.requires_grad = False
         #self.speaker.eval()
-    def forward(self,encoder_out):
+    def forward(self,wav):
+        reps = self.speaker(wav,mode='encoder')
         #self.speaker.eval()
         #for name, param in self.speaker.parameters():
             #print(name)
@@ -451,5 +455,5 @@ class multi_TDNN(nn.Module):
             #print('input:{},speaker:{}'.format(input.device,i.device))
         
         #encoder_out,feature = self.speaker(input,mode=mode,targets=target)
-        mask = self.decoder(encoder_out)
+        mask = self.decoder(reps)
         return mask

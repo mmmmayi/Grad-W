@@ -247,9 +247,7 @@ class IRMTrainer():
             target = target.squeeze().cuda()
             noise = noise.reshape(B,W).cuda() 
             noisy = noisy.reshape(B,W).cuda()
-            with torch.no_grad():
-                reps = self.auxl(noisy,mode='encoder')
-            mask = self.model(reps)
+            mask = self.model(noisy)
             SaM_c,mel_c,target = self.layer_CAM(clean)
             SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)
             SaM_n, mel_n, _ = self.layer_CAM(noise, target)
@@ -340,9 +338,7 @@ class IRMTrainer():
             clean = clean.reshape(B,W).cuda()
             noise = noise.reshape(B,W).cuda()
             noisy = noisy.reshape(B,W).cuda()
-            with torch.no_grad():
-                reps = self.auxl(noisy,mode='encoder')
-            mask = self.model(reps)
+            mask = self.model(noisy)
             
             SaM_c,mel_c,target = self.layer_CAM(clean)
             SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)

@@ -3,8 +3,8 @@ from Models.dataset import IRMDataset
 from Trainer.applier import IRMApplier
 
 
-PROJECT_DIR = "exp/transCov_sclean_0.1_overall_detachC_noLM_l2/wav_30"
-MODEL_PATH = "exp/transCov_sclean_0.1_overall_detachC_noLM_l2/models/model_30.pt"
+PROJECT_DIR = "exp/transCov_sclean_0.1_overall_detachC_noLM_noise0.5_encoder/wav_14"
+MODEL_PATH = "exp/transCov_sclean_0.1_overall_detachC_noLM_noise0.5_encoder/models/model_14.pt"
 mode = 'quality'
 
 if __name__ == "__main__":
