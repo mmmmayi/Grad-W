@@ -229,6 +229,12 @@ class IRMTrainer():
         yb=torch.sum(yb,1)
         return yb,mel,target
  
+    def weight_mse(self, pre, clean):
+        weight = torch.sum(clean,dim=-1).unsqueeze(-1)
+        m = nn.Softmax(dim=1)
+        weight = m(weight)
+        mse = torch.sum(weight*torch.pow(clean-pre,2))
+        return mse
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
         relu = nn.ReLU()
@@ -250,36 +256,37 @@ class IRMTrainer():
             mask = self.model(noisy)
             SaM_c,mel_c,target = self.layer_CAM(clean)
             SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)
-            SaM_n, mel_n, _ = self.layer_CAM(noise, target)
+            #SaM_n, mel_n, _ = self.layer_CAM(noise, target)
             '''
             for i in range(8):
                 
-                fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+                fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
 
                 max = torch.max(mel_c[i])
                 min = torch.min(mel_c[i])
                 librosa.display.specshow(mel_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
                 librosa.display.specshow(mel_n[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
-                img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
-                fig.colorbar(img2, ax=ax)
+                #img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
+                #fig.colorbar(img2, ax=ax)
                 plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'mel.png')
                 plt.close()
                 
-                fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+                fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
                 max = torch.max(SaM_c[i])
                 min = torch.min(SaM_c[i])                
                 librosa.display.specshow(SaM_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
                 img2 = librosa.display.specshow(SaM_n[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
-                librosa.display.specshow(SaM_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
+                #librosa.display.specshow(SaM_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
                 #fig.colorbar(img2, ax=ax)
                 plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'sam.png')
                 plt.close()
 
-            quit() 
+             
+            quit()
             '''
             #logits = logits.reshape(logits.shape[0],-1)
             #target_mask = target_mask.reshape(target_mask.shape[0],-1)
-            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B
+            mse_loss = self.weight_mse(SaM_pre, SaM_c.detach())/B
             train_loss = mse_loss
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(clean, '/data_a11/mayi/project/SIP/IRM/exp/debug/clean.pt')
@@ -342,8 +349,8 @@ class IRMTrainer():
             
             SaM_c,mel_c,target = self.layer_CAM(clean)
             SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)
-            SaM_n, mel_n, _ = self.layer_CAM(noise, target)
-            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B
+            #SaM_n, mel_n, _ = self.layer_CAM(noise, target)
+            mse_loss = self.weight_mse(SaM_pre, SaM_c.detach())/B
             #running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
             running_mse += mse_loss.item()
             i_batch += 1
