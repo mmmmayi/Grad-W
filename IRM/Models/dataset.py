@@ -129,11 +129,11 @@ class IRMDataset(Dataset):
                 audio_len = audio.shape[0]
                 audio_db = 10 * np.log10(np.mean(audio**2) + 1e-4)
                 if 'noise' in type:
-                    snr_range = [0, 15]
+                    snr_range = [0, 20]
                 elif 'speech' in type:
-                    snr_range = [10, 30]
+                    snr_range = [0, 20]
                 elif 'music' in type:
-                    snr_range = [5, 15]
+                    snr_range = [0, 20]
                 noise_snr = random.uniform(snr_range[0], snr_range[1])
                 noise_db = 10 * np.log10(np.mean(noise**2) + 1e-4)
                 noise_audio = np.sqrt(10**(
