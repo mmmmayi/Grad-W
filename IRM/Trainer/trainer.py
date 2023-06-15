@@ -227,7 +227,9 @@ class IRMTrainer():
         yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
         yb = relu(yb)*feature
         yb=torch.sum(yb,1)
-        return yb,mel,target
+        yb_norm = yb/(torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)+1e-6)
+
+        return yb_norm,mel,target
  
     def weight_mse(self, pre, clean):
         weight = torch.sum(clean,dim=-1).unsqueeze(-1)
@@ -265,7 +267,7 @@ class IRMTrainer():
                 max = torch.max(mel_c[i])
                 min = torch.min(mel_c[i])
                 librosa.display.specshow(mel_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
-                librosa.display.specshow(mel_n[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
+                librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
                 #img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
                 #fig.colorbar(img2, ax=ax)
                 plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'mel.png')
@@ -275,13 +277,23 @@ class IRMTrainer():
                 max = torch.max(SaM_c[i])
                 min = torch.min(SaM_c[i])                
                 librosa.display.specshow(SaM_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
-                img2 = librosa.display.specshow(SaM_n[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
+                img2 = librosa.display.specshow(SaM_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
                 #librosa.display.specshow(SaM_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
                 #fig.colorbar(img2, ax=ax)
                 plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'sam.png')
                 plt.close()
 
-             
+                fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
+                max = torch.max(norm_c[i])
+                min = torch.min(norm_c[i])                
+                librosa.display.specshow(norm_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
+                img2 = librosa.display.specshow(norm_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
+                #librosa.display.specshow(SaM_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
+                #fig.colorbar(img2, ax=ax)
+                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'norm.png')
+                plt.close()
+
+            
             quit()
             '''
             #logits = logits.reshape(logits.shape[0],-1)
