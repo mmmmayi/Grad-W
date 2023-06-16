@@ -444,9 +444,9 @@ class IRMApplier():
             acc = self.auxl(Xb, target_spk, 'acc', mask)
             #accs +=acc
             #print(acc)
-            #if acc.item()==1:
-                #continue
-            #print('wrong')
+            if acc.item()==1:
+                continue
+            print('wrong')
             SaM_c, mel_c, target = self.layer_CAM(clean)
             SaM_pre, mel_pre,_ = self.layer_CAM(Xb,target,mask)
             SaM_n, mel_n,_ = self.layer_CAM(Xb,target)

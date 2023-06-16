@@ -235,7 +235,7 @@ class IRMTrainer():
         weight = torch.sum(clean,dim=-1).unsqueeze(-1)
         m = nn.Softmax(dim=1)
         weight = m(weight)
-        mse = torch.sum(weight*torch.pow(clean-pre,2))
+        mse = torch.sum(weight*torch.abs(clean-pre))
         return mse
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
