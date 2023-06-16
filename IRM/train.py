@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_sclean_0.00001_overall_detachC_noLM_encoder_weight_snr_norm_mae"
+PROJECT_DIR = "exp/transCov_sclean_0.001_overall_detachC_noLM_encoder_weight_snr_norm_mae"
 
 ## Config
 configs = {
@@ -33,8 +33,8 @@ configs = {
     "ratio":0.1,
     "gpu":[0],
     "optimizer": {
-        "initial_lr": 0.00001,
-        "final_lr": 0.00001,
+        "initial_lr": 0.001,
+        "final_lr": 0.001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
