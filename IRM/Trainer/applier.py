@@ -54,7 +54,7 @@ class IRMApplier():
         self.auxl = Speaker_resnet().cuda()
         projection = ArcMarginProduct().cuda()
         self.auxl.add_module("projection", projection)
-        path = 'exp/resnet_5994.pt'
+        path = 'exp/resnet_babble.pt'
         checkpoint = torch.load(path)
         self.auxl.load_state_dict(checkpoint, strict=False)
         self.labels = torch.load('../lst/resnet_speaker.pt')
@@ -415,7 +415,7 @@ class IRMApplier():
 
 
     def apply(self):
-        eval_path = '/data_a11/mayi/dataset/IRM/mix'
+        eval_path = '/data_a11/mayi/dataset/IRM/mix_v2'
         eval_list = '/data_a11/mayi/project/ECAPATDNN-analysis/sub_vox2.txt'
         clean_path = '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/aac_split'
         self.labels = torch.load('/data_a11/mayi/project/ECAPATDNN-analysis/speaker.pt')

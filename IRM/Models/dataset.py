@@ -125,30 +125,45 @@ class IRMDataset(Dataset):
                                             mode='full')[:audio_len]
             else:
                 #add noise
-                noise, type = self.generate_noise(audio)
+                out_audio=audio
+
                 audio_len = audio.shape[0]
                 audio_db = 10 * np.log10(np.mean(audio**2) + 1e-4)
+                num = np.random.randint(0, self.noise_num, size=1)[0]
+                noise_path = self.noise_list[num].strip('\n')
+                type = noise_path.split('/')[5]
+                noise_list, snr_list = [],[]
                 if 'noise' in type:
-                    snr_range = [0, 20]
+                    snr_list.append(random.uniform(0, 20))
+                    noise_list.append(self.generate_noise(audio,noise_path))
                 elif 'speech' in type:
-                    snr_range = [0, 20]
-                elif 'music' in type:
-                    snr_range = [0, 20]
-                noise_snr = random.uniform(snr_range[0], snr_range[1])
-                noise_db = 10 * np.log10(np.mean(noise**2) + 1e-4)
-                noise_audio = np.sqrt(10**(
-                    (audio_db - noise_db - noise_snr) / 10)) * noise
-                out_audio = audio + noise_audio
+                    num_speech = np.random.randint(3,8)
+                    snr_list.append(np.random.choice([10,13,15,17,20]))
+                    noise_list.append(self.generate_noise(audio,noise_path))
+                    while len(noise_list)<num_speech:
+                        num = np.random.randint(0, self.noise_num, size=1)[0]
+                        noise_path = self.noise_list[num].strip('\n')
+                        type = noise_path.split('/')[5]
+                        if 'speech' in type:
+                            snr_list.append(np.random.choice([10,13,15,17,20]))
+                            noise_list.append(self.generate_noise(audio,noise_path))
 
-            out_audio = out_audio / (np.max(np.abs(out_audio)) + 1e-4)
+                elif 'music' in type:
+                    snr_list.append(random.uniform(0, 20))
+                    noise_list.append(self.generate_noise(audio,noise_path))
+                for i in range(len(noise_list)):
+                    noise_snr = snr_list[i]
+                    noise = noise_list[i]
+                    noise_db = 10 * np.log10(np.mean(noise**2) + 1e-4)
+                    noise_audio = np.sqrt(10**((audio_db - noise_db - noise_snr) / 10)) * noise
+                    out_audio = out_audio + noise_audio
+
         else:
             out_audio = audio
         return out_audio, noise
 
-    def generate_noise(self, audio):
-        num = np.random.randint(0, self.noise_num, size=1)[0]
-        noise_path = self.noise_list[num].strip('\n')
-        type = noise_path.split('/')[5]
+    def generate_noise(self, audio,noise_path):
+        
         noise, _  = soundfile.read(noise_path)
         len1 = len(audio)
         len2 = len(noise)
@@ -162,7 +177,7 @@ class IRMDataset(Dataset):
             noise_onset=np.random.randint(low=0, high =len2- len1 , size=1)[0]
             noise_offset =noise_onset +len1
             noise = noise[noise_onset: noise_offset]
-        return noise, type
+        return noise
 
     def mix_waveform(self,audio, noise, snr):
 

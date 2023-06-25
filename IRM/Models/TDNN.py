@@ -61,7 +61,7 @@ class ArcMarginProduct(nn.Module):
         """
     def __init__(self,
                  in_features=256,
-                 out_features=5994,
+                 out_features=5944,
                  scale=32.0,
                  margin=0,
                  easy_margin=False):
@@ -223,7 +223,6 @@ class Speaker_resnet(nn.Module):
     def forward(self, x, targets=None, mode='feature', mask=None):
         
         with torch.no_grad():
-            x = self.pre(x)
             x = self.Spec(x)
             frame_len = x.shape[-1]
             if mode =='apply':
@@ -437,7 +436,7 @@ class multi_TDNN(nn.Module):
         #for name in self.speaker.parameters():
             #print(name)
 
-        #path = "exp/resnet_5994.pt"
+        #path = "exp/resnet_babble.pt"
         #checkpoint = torch.load(path)
         #self.speaker.load_state_dict(checkpoint, strict=False)
 

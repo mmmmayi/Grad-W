@@ -68,7 +68,7 @@ class IRMTrainer():
         projection = ArcMarginProduct()
         self.auxl.add_module("projection", projection)
         self.auxl = self.auxl.cuda()
-        checkpoint = torch.load('exp/resnet_5994.pt')
+        checkpoint = torch.load('exp/resnet_babble.pt')
         self.auxl.load_state_dict(checkpoint, strict=False)
         self.auxl.eval()
 

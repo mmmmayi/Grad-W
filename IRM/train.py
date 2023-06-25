@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_sclean_0.001_overall_detachC_noLM_encoder_weight_snr_norm_mae"
+PROJECT_DIR = "exp/transCov_sclean_0.001_overall_detachC_noLM_encoder_norm_mae"
 
 ## Config
 configs = {
@@ -133,7 +133,6 @@ if __name__ == "__main__":
         model=nnet_ddp, optimizer=optimizer, loss_fn=[COS_loss,MSE_loss,CE_loss], dur = configs["dur"],
         train_dl=train_loader, validation_dl=valid_loader, ratio=configs["ratio"],
         local_rank=local_rank, w_p=configs["weight"], w_n=configs["w_n"],center_num=configs["center_num"])
-    device = torch.device("cuda")
     dist.barrier()
     #irm_trainer._get_global_mean_variance()
     for epoch in range(1, configs["num_epochs"]+1):
