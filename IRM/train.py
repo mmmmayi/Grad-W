@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_sclean_0.001_overall_detachC_noLM_encoder_norm_mae"
+PROJECT_DIR = "exp/transCov_0.001_detachC_noLM_encoder_DFLsameW_mae"
 
 ## Config
 configs = {

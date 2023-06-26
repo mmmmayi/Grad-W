@@ -12,7 +12,8 @@ from Models.TDNN import Speaker_resnet, ArcMarginProduct
 import tools.utils as utils
 from tools.logger import get_logger
 from torch.utils.tensorboard import SummaryWriter
-from tools.metrics import compute_PESQ, compute_segsnr
+from tools.metrics import compute_PESQ, compute_segsnr,ComputeErrorRates,ComputeMinDcf,tuneThresholdfromScore
+import torch.nn.functional as F
 import torch.nn.functional as nnf
 import torch.distributed as dist
 class IRMTrainer():
@@ -220,16 +221,17 @@ class IRMTrainer():
         centers=torch.stack(centers).squeeze().requires_grad_()
         return centers
 
-    def layer_CAM(self,input,target_spk=None, mask=None):
+    def layer_CAM(self,input,target_spk=None, mask=None,weight=None):
         relu = nn.ReLU()
         score,feature,mel,target = self.auxl(input, target_spk, 'loss', mask)
         self.auxl.zero_grad()
-        yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
-        yb = relu(yb)*feature
-        yb=torch.sum(yb,1)
-        yb_norm = yb/(torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)+1e-6)
+        if weight is None:
+            weight = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
+        yb = relu(weight)*feature
+        #yb=torch.sum(yb,1)
+        #yb_norm = yb/(torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)+1e-6)
 
-        return yb_norm,mel,target
+        return yb,mel,target,weight
  
     def weight_mse(self, pre, clean):
         weight = torch.sum(clean,dim=-1).unsqueeze(-1)
@@ -256,8 +258,8 @@ class IRMTrainer():
             noise = noise.reshape(B,W).cuda() 
             noisy = noisy.reshape(B,W).cuda()
             mask = self.model(noisy)
-            SaM_c,mel_c,target = self.layer_CAM(clean)
-            SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)
+            SaM_c,mel_c,target,weight = self.layer_CAM(clean)
+            SaM_pre,mel_pre,_,_ = self.layer_CAM(noisy,target,mask,weight)
             #SaM_n, mel_n, _ = self.layer_CAM(noise, target)
             '''
             for i in range(8):
@@ -344,6 +346,39 @@ class IRMTrainer():
         self.model.eval()
 
     def validation_epoch(self, epoch, weight, device):
+        eval_path = ['/data_a11/mayi/dataset/IRM/mix_v2']
+        eval_list = '/data_a11/mayi/project/ECAPATDNN-analysis/sub_vox2.txt'
+        files = []
+        embeddings = {}
+        lines = open(eval_list).read().splitlines()
+        for line in lines:
+            files.append(line.split()[1])
+            files.append(line.split()[2])
+        setfiles = list(set(files))
+        setfiles.sort()
+        for path in eval_path:
+            for i, file in tqdm.tqdm(enumerate(setfiles), total = len(setfiles)):
+                audio, _  = soundfile.read(os.path.join(path, file))
+                data_1 = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
+                mask = self.model(data_1)
+                embedding, mel_pre = self.auxl(data_1, None, 'score',mask)
+                embedding_1 = F.normalize(embedding, p=2, dim=1)
+                embeddings[file] = [embedding_1, ]
+            scores, labels  = [], []
+            for line in lines:
+                embedding_11, = embeddings[line.split()[1]]
+                embedding_21, = embeddings[line.split()[2]]
+                score_1 = torch.mean(torch.matmul(embedding_11, embedding_21.T))
+                score = score_1.detach().cpu().numpy()
+                scores.append(score)
+                labels.append(int(line.split()[0]))
+            EER = tuneThresholdfromScore(scores, labels, [1, 0.1])[1]
+            fnrs, fprs, thresholds = ComputeErrorRates(scores, labels)
+            minDCF, _ = ComputeMinDcf(fnrs, fprs, thresholds, 0.05, 1, 1)
+            self.writer.add_scalar('Validation/eer', EER, epoch)
+            self.writer.add_scalar('Validation/mindcf', minDCF, epoch)
+    '''
+    def validation_epoch(self, epoch, weight, device):
         start_time = time.time()
         running_cos, running_score, running_n, running_mse, running_diff_loss, running_tnr_loss, running_tpr_loss  = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         i_batch,diff_batch = 0,0
@@ -359,8 +394,8 @@ class IRMTrainer():
             noisy = noisy.reshape(B,W).cuda()
             mask = self.model(noisy)
             
-            SaM_c,mel_c,target = self.layer_CAM(clean)
-            SaM_pre,mel_pre,_ = self.layer_CAM(noisy,target,mask)
+            SaM_c,mel_c,target,weight = self.layer_CAM(clean)
+            SaM_pre,mel_pre,_,_ = self.layer_CAM(noisy,target,mask,weight)
             #SaM_n, mel_n, _ = self.layer_CAM(noise, target)
             mse_loss = self.weight_mse(SaM_pre, SaM_c.detach())/B
             #running_cos += self.weight*torch.mean(1-self.cos(logits,target_mask)).item()
@@ -375,7 +410,7 @@ class IRMTrainer():
             self.writer.add_scalar('Validation/mse', ave_mse_loss, epoch)
             self.logger.info(f"Time used for this epoch validation: {end_time - start_time} seconds")
             self.logger.info("Epoch:{}".format(epoch))
-
+    '''
     def _get_global_mean_variance(self):
         mean = 0.0
         variance = 0.0

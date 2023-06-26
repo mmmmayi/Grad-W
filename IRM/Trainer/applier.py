@@ -14,6 +14,8 @@ from Models.models import PreEmphasis
 from tools.metrics import compute_PESQ, compute_segsnr
 import torch.nn as nn
 from Models.TDNN import Speaker_resnet, ArcMarginProduct
+from tools.metrics import compute_PESQ, compute_segsnr,ComputeErrorRates,ComputeMinDcf,tuneThresholdfromScore
+import torch.nn.functional as F
 class IRMApplier():
     def __init__(self,
             project_dir, test_set_name, sampling_rate,
@@ -418,7 +420,7 @@ class IRMApplier():
         eval_path = '/data_a11/mayi/dataset/IRM/mix_v2'
         eval_list = '/data_a11/mayi/project/ECAPATDNN-analysis/sub_vox2.txt'
         clean_path = '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/aac_split'
-        self.labels = torch.load('/data_a11/mayi/project/ECAPATDNN-analysis/speaker.pt')
+        self.labels = torch.load('exp/resnet_babble_speaker.pt')
         lines = open(eval_list).read().splitlines()
         files = []
         accs=0
@@ -427,31 +429,26 @@ class IRMApplier():
             files.append(line.split()[2])
         setfiles = list(set(files))
         setfiles.sort()
+        embeddings = {}
         for i, file in tqdm.tqdm(enumerate(setfiles), total = len(setfiles)):
 
             # Load data from validation_dataloader
             spk = file.split('/')[0]
             idx = int(spk[2:])
             num = str(idx//200)
-            target_spk = torch.stack([torch.tensor(int(self.labels[spk]))]).cuda()
             audio, _  = soundfile.read(os.path.join(eval_path, num,file))
             Xb = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
             audio, _  = soundfile.read(os.path.join(clean_path, num,file))
             clean = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
 
             #feature = torch.load('/data_a11/mayi/project/SIP/IRM/exp/debug/feature.pt')
-            mask = self.model(Xb)
-            acc = self.auxl(Xb, target_spk, 'acc', mask)
-            #accs +=acc
-            #print(acc)
-            if acc.item()==1:
-                continue
-            print('wrong')
-            SaM_c, mel_c, target = self.layer_CAM(clean)
-            SaM_pre, mel_pre,_ = self.layer_CAM(Xb,target,mask)
-            SaM_n, mel_n,_ = self.layer_CAM(Xb,target)
-            #accs += acc
-            #continue
+            with torch.no_grad():
+                mask = self.model(Xb)
+                embedding, mel_pre = self.auxl(Xb, None, 'score',mask)
+            embedding_1 = F.normalize(embedding, p=2, dim=1)
+            embeddings[file] = [embedding_1, ]
+
+            continue
             
 
             if not os.path.exists(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2])):
@@ -470,20 +467,21 @@ class IRMApplier():
 
             plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','mask.png')))
             plt.close()
-            fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
-            #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
-            max = torch.max(SaM_c)
-            min = torch.min(SaM_c)
-            librosa.display.specshow(SaM_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
-            librosa.display.specshow(SaM_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
-            img = librosa.display.specshow(SaM_pre.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2], vmin=min,vmax=max)
-            #fig.colorbar(img, ax=ax)
-            #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
-
-            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sam.png')))
-            plt.close()
-
+        scores, labels  = [], []
+        for line in lines:
+            embedding_11, = embeddings[line.split()[1]]
+            embedding_21, = embeddings[line.split()[2]]
+            score_1 = torch.mean(torch.matmul(embedding_11, embedding_21.T))
+            score = score_1.detach().cpu().numpy()
+            scores.append(score)
+            labels.append(int(line.split()[0]))
+        EER = tuneThresholdfromScore(scores, labels, [1, 0.1])[1]
+        fnrs, fprs, thresholds = ComputeErrorRates(scores, labels)
+        minDCF, _ = ComputeMinDcf(fnrs, fprs, thresholds, 0.05, 1, 1)
+        self.writer.add_scalar('Validation/eer', EER, epoch)
+        self.writer.add_scalar('Validation/mindcf', minDCF, epoch)
+ 
 
         print('accuracy',accs/len(setfiles))
 
