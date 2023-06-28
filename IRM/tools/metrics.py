@@ -3,6 +3,8 @@ import soundfile as sf
 from pypesq import pesq
 from pystoi.stoi import stoi
 from operator import itemgetter
+from sklearn import metrics
+
 def tuneThresholdfromScore(scores, labels, target_fa, target_fr = None):
     fpr, tpr, thresholds = metrics.roc_curve(labels, scores, pos_label=1)
     fnr = 1 - tpr

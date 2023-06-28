@@ -16,6 +16,7 @@ from tools.metrics import compute_PESQ, compute_segsnr,ComputeErrorRates,Compute
 import torch.nn.functional as F
 import torch.nn.functional as nnf
 import torch.distributed as dist
+import soundfile
 class IRMTrainer():
     def __init__(self,
             config, project_dir,
@@ -228,10 +229,10 @@ class IRMTrainer():
         if weight is None:
             weight = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
         yb = relu(weight)*feature
-        #yb=torch.sum(yb,1)
-        #yb_norm = yb/(torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)+1e-6)
+        yb=torch.sum(yb,1)
+        yb_norm = yb/(torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)+1e-6)
 
-        return yb,mel,target,weight
+        return yb_norm,mel,target,weight
  
     def weight_mse(self, pre, clean):
         weight = torch.sum(clean,dim=-1).unsqueeze(-1)
@@ -259,7 +260,7 @@ class IRMTrainer():
             noisy = noisy.reshape(B,W).cuda()
             mask = self.model(noisy)
             SaM_c,mel_c,target,weight = self.layer_CAM(clean)
-            SaM_pre,mel_pre,_,_ = self.layer_CAM(noisy,target,mask,weight)
+            SaM_pre,mel_pre,_,_ = self.layer_CAM(noisy,target,mask)
             #SaM_n, mel_n, _ = self.layer_CAM(noise, target)
             '''
             for i in range(8):
@@ -357,11 +358,16 @@ class IRMTrainer():
         setfiles = list(set(files))
         setfiles.sort()
         for path in eval_path:
-            for i, file in tqdm.tqdm(enumerate(setfiles), total = len(setfiles)):
-                audio, _  = soundfile.read(os.path.join(path, file))
+            for file in setfiles:
+                spk = file.split('/')[0]
+                idx = int(spk[2:])
+                num = str(idx//200)
+
+                audio, _  = soundfile.read(os.path.join(path, num,file))
                 data_1 = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
-                mask = self.model(data_1)
-                embedding, mel_pre = self.auxl(data_1, None, 'score',mask)
+                with torch.no_grad():
+                    mask = self.model(data_1)
+                    embedding, mel_pre = self.auxl(data_1, None, 'score',mask)
                 embedding_1 = F.normalize(embedding, p=2, dim=1)
                 embeddings[file] = [embedding_1, ]
             scores, labels  = [], []
@@ -375,8 +381,9 @@ class IRMTrainer():
             EER = tuneThresholdfromScore(scores, labels, [1, 0.1])[1]
             fnrs, fprs, thresholds = ComputeErrorRates(scores, labels)
             minDCF, _ = ComputeMinDcf(fnrs, fprs, thresholds, 0.05, 1, 1)
-            self.writer.add_scalar('Validation/eer', EER, epoch)
-            self.writer.add_scalar('Validation/mindcf', minDCF, epoch)
+            if device==0:
+                self.writer.add_scalar('Validation/eer', EER, epoch)
+                self.writer.add_scalar('Validation/mindcf', minDCF, epoch)
     '''
     def validation_epoch(self, epoch, weight, device):
         start_time = time.time()

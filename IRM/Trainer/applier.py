@@ -415,6 +415,43 @@ class IRMApplier():
         yb=torch.sum(yb,1)
         return yb,mel,target
 
+    def speaker_verification(self,eval_path,eval_list,model_path):
+        checkpoint = torch.load(model_path)
+        self.model.load_state_dict(checkpoint)
+
+        files = []
+        embeddings = {}
+        lines = open(eval_list).read().splitlines()
+        for line in lines:
+            files.append(line.split()[1])
+            files.append(line.split()[2])
+        setfiles = list(set(files))
+        setfiles.sort()
+        for path in eval_path:
+            for i, file in tqdm.tqdm(enumerate(setfiles), total = len(setfiles)):
+                spk = file.split('/')[0]
+                audio, _  = soundfile.read(os.path.join(path, file))
+                data_1 = torch.FloatTensor(np.stack([audio],axis=0)).cuda()
+                
+               
+                with torch.no_grad():
+                    mask = self.model(data_1)
+                    embedding, mel_pre = self.auxl(data_1, None, 'score',mask)
+                    embedding_1 = F.normalize(embedding, p=2, dim=1)
+                embeddings[file] = [embedding_1, ]
+            scores, labels  = [], []
+            for line in lines:
+                embedding_11, = embeddings[line.split()[1]]
+                embedding_21, = embeddings[line.split()[2]]
+                score_1 = torch.mean(torch.matmul(embedding_11, embedding_21.T))
+                score = score_1.detach().cpu().numpy()
+                scores.append(score)
+                labels.append(int(line.split()[0]))
+            EER = tuneThresholdfromScore(scores, labels, [1, 0.1])[1]
+            fnrs, fprs, thresholds = ComputeErrorRates(scores, labels)
+            minDCF, _ = ComputeMinDcf(fnrs, fprs, thresholds, 0.05, 1, 1)
+            print('path:',path)
+            print('EER:{}, minDCF:{}'.format(EER,minDCF))
 
     def apply(self):
         eval_path = '/data_a11/mayi/dataset/IRM/mix_v2'
@@ -445,10 +482,12 @@ class IRMApplier():
             with torch.no_grad():
                 mask = self.model(Xb)
                 embedding, mel_pre = self.auxl(Xb, None, 'score',mask)
+                _, mel_n = self.auxl(Xb, None, 'score')
+                _, mel_c = self.auxl(clean, None, 'score')
             embedding_1 = F.normalize(embedding, p=2, dim=1)
             embeddings[file] = [embedding_1, ]
 
-            continue
+            #continue
             
 
             if not os.path.exists(os.path.join(self.PROJECT_DIR,file.split('/')[-3],file.split('/')[-2])):
@@ -479,11 +518,11 @@ class IRMApplier():
         EER = tuneThresholdfromScore(scores, labels, [1, 0.1])[1]
         fnrs, fprs, thresholds = ComputeErrorRates(scores, labels)
         minDCF, _ = ComputeMinDcf(fnrs, fprs, thresholds, 0.05, 1, 1)
-        self.writer.add_scalar('Validation/eer', EER, epoch)
-        self.writer.add_scalar('Validation/mindcf', minDCF, epoch)
+        print('Validation/eer:', EER)
+        print('Validation/mindcf', minDCF)
  
 
-        print('accuracy',accs/len(setfiles))
+        #print('accuracy',accs/len(setfiles))
 
 
 
