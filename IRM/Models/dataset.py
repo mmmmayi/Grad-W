@@ -134,11 +134,11 @@ class IRMDataset(Dataset):
                 type = noise_path.split('/')[5]
                 noise_list, snr_list = [],[]
                 if 'noise' in type:
-                    snr_list.append(random.uniform(-5, 10))
+                    snr_list.append(random.uniform(0, 20))
                     noise_list.append(self.generate_noise(audio,noise_path))
                 elif 'speech' in type:
                     num_speech = np.random.randint(3,8)
-                    snr_list.append(np.random.choice([5,7,10,13,15]))
+                    snr_list.append(np.random.choice([10,13,15,17,20]))
                     noise_list.append(self.generate_noise(audio,noise_path))
                     while len(noise_list)<num_speech:
                         num = np.random.randint(0, self.noise_num, size=1)[0]
@@ -149,7 +149,7 @@ class IRMDataset(Dataset):
                             noise_list.append(self.generate_noise(audio,noise_path))
 
                 elif 'music' in type:
-                    snr_list.append(random.uniform(-5, 10))
+                    snr_list.append(random.uniform(0, 20))
                     noise_list.append(self.generate_noise(audio,noise_path))
                 for i in range(len(noise_list)):
                     noise_snr = snr_list[i]
