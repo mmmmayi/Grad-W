@@ -406,14 +406,16 @@ class IRMApplier():
         return 1/(1+(-a*x).exp())
     #@torch.no_grad()
 
-    def layer_CAM(self,input,target_spk=None, mask=None):
+    def layer_CAM(self,input,target_spk=None, mask=None,feature_c=None):
         relu = nn.ReLU()
         score,feature,mel,target = self.auxl(input, target_spk, 'loss', mask)
         self.auxl.zero_grad()
         yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
-        yb = relu(yb)*feature
+        if feature_c is None:
+            feature_c = feature
+        yb = relu(yb)*feature_c
         yb=torch.sum(yb,1)
-        return yb,mel,target
+        return yb,mel,target,feature_c
 
     def speaker_verification(self,eval_path,eval_list,model_path):
         checkpoint = torch.load(model_path)
@@ -454,16 +456,17 @@ class IRMApplier():
             print('EER:{}, minDCF:{}'.format(EER,minDCF))
 
     def apply(self):
-        eval_path = '/data_a11/mayi/dataset/IRM/mix_v2'
-        eval_list = '/data_a11/mayi/project/ECAPATDNN-analysis/sub_vox2.txt'
+        eval_path = '/data_a11/mayi/dataset/IRM/mix_v3'
+        eval_list = '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/sub_spk_list_v2'
         clean_path = '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb2/dev/aac_split'
         self.labels = torch.load('exp/resnet_babble_speaker.pt')
-        lines = open(eval_list).read().splitlines()
+        lines = open(eval_list).readlines()
         files = []
         accs=0
         for line in lines:
-            files.append(line.split()[1])
-            files.append(line.split()[2])
+            lines = line.strip('\n').split('/')
+            files.append(os.path.join(lines[-3],lines[-2],lines[-1]))
+        
         setfiles = list(set(files))
         setfiles.sort()
         embeddings = {}
@@ -481,11 +484,15 @@ class IRMApplier():
             #feature = torch.load('/data_a11/mayi/project/SIP/IRM/exp/debug/feature.pt')
             with torch.no_grad():
                 mask = self.model(Xb)
-                embedding, mel_pre = self.auxl(Xb, None, 'score',mask)
-                _, mel_n = self.auxl(Xb, None, 'score')
-                _, mel_c = self.auxl(clean, None, 'score')
-            embedding_1 = F.normalize(embedding, p=2, dim=1)
-            embeddings[file] = [embedding_1, ]
+            target_spk = torch.stack([torch.tensor(int(self.labels[spk]))]).cuda()
+
+            acc = self.auxl(Xb, target_spk, 'acc',mask)
+            #if acc.item()==1:
+                #continue
+            #print('wrong')
+            SaM_c,mel_c,target,feature_c = self.layer_CAM(clean)
+            SaM_pre,mel_pre,_,_ = self.layer_CAM(Xb,target,mask,feature_c)
+            SaM_n,mel_n,_,_ = self.layer_CAM(Xb,target,None,feature_c)
 
             #continue
             
@@ -506,21 +513,22 @@ class IRMApplier():
 
             plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','mask.png')))
             plt.close()
+            fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+            #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
+            max = torch.max(SaM_c)
+            min = torch.min(SaM_c)
+            librosa.display.specshow(SaM_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
-        scores, labels  = [], []
-        for line in lines:
-            embedding_11, = embeddings[line.split()[1]]
-            embedding_21, = embeddings[line.split()[2]]
-            score_1 = torch.mean(torch.matmul(embedding_11, embedding_21.T))
-            score = score_1.detach().cpu().numpy()
-            scores.append(score)
-            labels.append(int(line.split()[0]))
-        EER = tuneThresholdfromScore(scores, labels, [1, 0.1])[1]
-        fnrs, fprs, thresholds = ComputeErrorRates(scores, labels)
-        minDCF, _ = ComputeMinDcf(fnrs, fprs, thresholds, 0.05, 1, 1)
-        print('Validation/eer:', EER)
-        print('Validation/mindcf', minDCF)
- 
+            librosa.display.specshow(SaM_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
+            img = librosa.display.specshow(SaM_pre.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2],vmin=min,vmax=max)
+            fig.colorbar(img, ax=ax)
+            #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
+
+            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sam.png')))
+            plt.close()
+
+
+
 
         #print('accuracy',accs/len(setfiles))
 

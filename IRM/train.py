@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_sclean_0.001_noLM_encoder_DFLsameF_mae"
+PROJECT_DIR = "exp/transCov_sclean_0.0001_noLM_encoder_DFLsameF_mae"
 
 ## Config
 configs = {
@@ -33,8 +33,8 @@ configs = {
     "ratio":0.1,
     "gpu":[0],
     "optimizer": {
-        "initial_lr": 0.001,
-        "final_lr": 0.001,
+        "initial_lr": 0.0001,
+        "final_lr": 0.0001,
         "beta1": 0.0,
         "beta2": 0.9}}
 
@@ -57,7 +57,7 @@ if __name__ == "__main__":
         path="../lst/cat_utt_len",
         path_sorted = None,
         sub=1,
-        spk="../lst/train_spk.lst",
+        spk="../lst/train_spk_v2.lst",
         batch_size=configs["batchsize"], dur=configs["dur"],mode="train",center_num=configs["center_num"], test_num=configs["test_num"],num_spk=configs["num_spk"])
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_irm_dataset)
     train_loader = DataLoader(

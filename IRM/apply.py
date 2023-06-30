@@ -3,8 +3,8 @@ from Models.dataset import IRMDataset
 from Trainer.applier import IRMApplier
 
 
-PROJECT_DIR = "exp/transCov_sclean_0.001_overall_detachC_noLM_encoder_norm_mae/wav_50"
-MODEL_PATH = "exp/transCov_sclean_0.001_overall_detachC_noLM_encoder_norm_mae/models/model_50.pt"
+PROJECT_DIR = "exp/transCov_sclean_0.001_noLM_encoder_DFLsameF_mae/wav_10"
+MODEL_PATH = "exp/transCov_sclean_0.001_noLM_encoder_DFLsameF_mae/models/model_10.pt"
 mode = 'quality'
 
 if __name__ == "__main__":
@@ -31,18 +31,17 @@ if __name__ == "__main__":
         mode = mode)
 
 #    irm_applier.quality_vox1()
-    #irm_applier.apply()
+    irm_applier.apply()
    
     eval_list = '/data_a11/mayi/project/enhancement/recipes/sitw/xvector/test_list.txt'
-    eval_path=['/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr0']
-    '''
+    eval_path=['/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/wav',\
     '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr0',\
     '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr5',\
     '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr10',\
     '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr15',\
     '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr20']
-    '''
-    for i in range(38,39,2):
-        path = "/data_a11/mayi/project/SIP/IRM/exp/transCov_0.001_detachC_noLM_encoder_DFLsameW_mae/models/model_"+str(i)+'.pt'
+    
+    for i in range(50,51,2):
+        path = "/data_a11/mayi/project/SIP/IRM/exp/transCov_0.001_detachC_noLM_fixed_DFL_mae/models/model_"+str(i)+'.pt'
         print(str(i)+'th epoch')
         irm_applier.speaker_verification(eval_path,eval_list,path)
