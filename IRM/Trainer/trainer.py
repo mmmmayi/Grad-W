@@ -303,7 +303,7 @@ class IRMTrainer():
             '''
             #logits = logits.reshape(logits.shape[0],-1)
             #target_mask = target_mask.reshape(target_mask.shape[0],-1)
-            mse_loss = self.weight_mse(SaM_pre, SaM_c.detach())/B
+            mse_loss = self.mse(SaM_pre, SaM_c.detach())/B
             train_loss = mse_loss
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(clean, '/data_a11/mayi/project/SIP/IRM/exp/debug/clean.pt')
