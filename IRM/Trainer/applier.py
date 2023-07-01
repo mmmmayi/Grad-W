@@ -487,9 +487,9 @@ class IRMApplier():
             target_spk = torch.stack([torch.tensor(int(self.labels[spk]))]).cuda()
 
             acc = self.auxl(Xb, target_spk, 'acc',mask)
-            #if acc.item()==1:
-                #continue
-            #print('wrong')
+            if acc.item()==1:
+                continue
+            print('wrong')
             SaM_c,mel_c,target,feature_c = self.layer_CAM(clean)
             SaM_pre,mel_pre,_,_ = self.layer_CAM(Xb,target,mask,feature_c)
             SaM_n,mel_n,_,_ = self.layer_CAM(Xb,target,None,feature_c)

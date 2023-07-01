@@ -222,19 +222,17 @@ class IRMTrainer():
         centers=torch.stack(centers).squeeze().requires_grad_()
         return centers
 
-    def layer_CAM(self,input,target_spk=None, mask=None,feature_c=None):
+    def layer_CAM(self,input,target_spk=None, mask=None,weight=None):
         relu = nn.ReLU()
         score,feature,mel,target = self.auxl(input, target_spk, 'loss', mask)
         self.auxl.zero_grad()
-        
-        weight = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
-        if feature_c is None:
-            feature_c=feature
-        yb = relu(weight)*feature_c
+        if weight is None:
+            weight = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
+        yb = relu(weight)*feature
         #yb=torch.sum(yb,1)
         #yb_norm = yb/(torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)+1e-6)
 
-        return yb,mel,target,feature_c
+        return yb,mel,target,weight
  
     def weight_mse(self, pre, clean):
         weight = torch.sum(clean,dim=-1).unsqueeze(-1)
@@ -261,8 +259,8 @@ class IRMTrainer():
             noise = noise.reshape(B,W).cuda() 
             noisy = noisy.reshape(B,W).cuda()
             mask = self.model(noisy)
-            SaM_c,mel_c,target,feature_c = self.layer_CAM(clean)
-            SaM_pre,mel_pre,_,_ = self.layer_CAM(noisy,target,mask,feature_c)
+            SaM_c,mel_c,target,weight = self.layer_CAM(clean)
+            SaM_pre,mel_pre,_,_ = self.layer_CAM(noisy,target,mask,weight)
             #SaM_n, mel_n, _ = self.layer_CAM(noise, target)
             '''
             for i in range(8):
