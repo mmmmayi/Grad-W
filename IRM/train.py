@@ -25,13 +25,13 @@ configs = {
     "scale":8,  
     "num_epochs": 50,
     "th": 0.05,
-    "batchsize": 32,
+    "batchsize": 16,
     "center_num": '4',
     "test_num":'4',
     "dur": 5,
     "resume_epoch":None,
     "ratio":0.1,
-    "gpu":[0],
+    "gpu":[0,1],
     "optimizer": {
         "initial_lr": 0.001,
         "final_lr": 0.001,
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     
     #optimizer = torch.optim.Adadelta(nnet.parameters(), lr=configs["optimizer"]["lr"])
     BCE_loss = nn.BCELoss()
-    MSE_loss = nn.MSELoss(reduction = 'sum')
+    MSE_loss = nn.L1Loss(reduction = 'sum')
     COS_loss = nn.CosineSimilarity(dim=1)
     CE_loss = nn.CrossEntropyLoss()
     #loss_fn = nn.L1Loss(reduction='sum')
