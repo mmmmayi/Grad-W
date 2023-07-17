@@ -228,7 +228,7 @@ class IRMTrainer():
         self.auxl.zero_grad()
         
         weight = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
-        weight = weight.detach()
+        weight = relu(weight).detach()
         #yb = relu(weight)*feature
         #yb=torch.sum(yb,1)
         #yb_norm = yb/(torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)+1e-6)
