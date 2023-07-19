@@ -237,9 +237,10 @@ class IRMTrainer():
  
     def weight_mse(self, weight_c, weight_pre, clean, pre):
         #weight = torch.sum(clean,dim=-1).unsqueeze(-1)
-        #m = nn.Softmax(dim=1)
+        m = nn.Softmax(dim=1)
         #weight = m(weight)
         weight = torch.abs(weight_c-weight_pre)
+        weight = m(weight)
         mse = torch.sum(weight*torch.abs(clean-pre))
         return mse
 
