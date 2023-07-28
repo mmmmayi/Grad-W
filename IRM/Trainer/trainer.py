@@ -228,7 +228,7 @@ class IRMTrainer():
         self.auxl.zero_grad()
         
         weight = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
-        weight = relu(weight).detach()
+        weight = weight.detach()
         #yb = relu(weight)*feature
         #yb=torch.sum(yb,1)
         #yb_norm = yb/(torch.amax(yb,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)+1e-6)
@@ -237,10 +237,12 @@ class IRMTrainer():
  
     def weight_mse(self, weight_c, weight_pre, clean, pre):
         #weight = torch.sum(clean,dim=-1).unsqueeze(-1)
-        m = nn.Softmax(dim=1)
+        #m = nn.Softmax(dim=1)
         #weight = m(weight)
-        weight = torch.abs(weight_c-weight_pre)
-        weight = m(weight)
+        weight = torch.sum(torch.abs(weight_c-weight_pre),dim=1).unsqueeze(1)
+        #print(weight.shape)
+        #quit()
+        #weight = m(weight)
         mse = torch.sum(weight*torch.abs(clean-pre))
         return mse
 
@@ -264,41 +266,22 @@ class IRMTrainer():
             mask = self.model(noisy)
             SaM_c,mel_c,target,weight_c = self.layer_CAM(clean)
             SaM_pre,mel_pre,_,weight_pre = self.layer_CAM(noisy,target,mask)
-            #SaM_n, mel_n, _ = self.layer_CAM(noise, target)
+
             '''
+            SaM_n, mel_n, _, _ = self.layer_CAM(noisy, target)
+            diff = torch.sum(torch.abs(weight_c-weight_pre),dim=1)
+            weight_c=torch.sum(weight_c,dim=1)
             for i in range(8):
                 
                 fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
 
-                max = torch.max(mel_c[i])
-                min = torch.min(mel_c[i])
-                librosa.display.specshow(mel_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
-                librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
+                librosa.display.specshow(weight_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
+                img2=librosa.display.specshow(diff[i].detach().cpu().numpy().squeeze(),x_axis=None, ax=ax[1])
                 #img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
-                #fig.colorbar(img2, ax=ax)
+                fig.colorbar(img2, ax=ax)
                 plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'mel.png')
                 plt.close()
                 
-                fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
-                max = torch.max(SaM_c[i])
-                min = torch.min(SaM_c[i])                
-                librosa.display.specshow(SaM_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
-                img2 = librosa.display.specshow(SaM_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
-                #librosa.display.specshow(SaM_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
-                #fig.colorbar(img2, ax=ax)
-                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'sam.png')
-                plt.close()
-
-                fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
-                max = torch.max(norm_c[i])
-                min = torch.min(norm_c[i])                
-                librosa.display.specshow(norm_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
-                img2 = librosa.display.specshow(norm_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[1] ,vmin=min,vmax=max)
-                #librosa.display.specshow(SaM_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
-                #fig.colorbar(img2, ax=ax)
-                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'norm.png')
-                plt.close()
-
             
             quit()
             '''
