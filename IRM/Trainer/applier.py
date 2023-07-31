@@ -406,16 +406,16 @@ class IRMApplier():
         return 1/(1+(-a*x).exp())
     #@torch.no_grad()
 
-    def layer_CAM(self,input,target_spk=None, mask=None,feature_c=None):
+    def layer_CAM(self,input,target_spk=None, mask=None):
         relu = nn.ReLU()
         score,feature,mel,target = self.auxl(input, target_spk, 'loss', mask)
         self.auxl.zero_grad()
         yb = torch.autograd.grad(score, feature, grad_outputs=torch.ones_like(score), create_graph=True, retain_graph=True)[0]
-        if feature_c is None:
-            feature_c = feature
-        yb = relu(yb)*feature_c
-        yb=torch.sum(yb,1)
-        return yb,mel,target,feature_c
+        #if feature_c is None:
+            #feature_c = feature
+        #yb = relu(yb)*feature_c
+        #yb=torch.sum(yb,1)
+        return yb,mel,target,feature
 
     def speaker_verification(self,eval_path,eval_list,model_path):
         checkpoint = torch.load(model_path)
@@ -490,9 +490,11 @@ class IRMApplier():
             if acc.item()==1:
                 continue
             print('wrong')
-            SaM_c,mel_c,target,feature_c = self.layer_CAM(clean)
-            SaM_pre,mel_pre,_,_ = self.layer_CAM(Xb,target,mask,feature_c)
-            SaM_n,mel_n,_,_ = self.layer_CAM(Xb,target,None,feature_c)
+            SaM_c,mel_c,target,fea_c = self.layer_CAM(clean)
+            SaM_pre,mel_pre,_,fea_pre = self.layer_CAM(Xb,target,mask)
+            SaM_n,mel_n,_,fea_n = self.layer_CAM(Xb,target,None)
+
+            weight = torch.sum(torch.abs(SaM_c-SaM_pre),dim=1).unsqueeze(1)
 
             #continue
             
@@ -507,7 +509,8 @@ class IRMApplier():
             librosa.display.specshow(mel_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
             librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
-            img = librosa.display.specshow(mask.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+            
+            img = librosa.display.specshow(mel_pre.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2],vmin=min,vmax=max)
             fig.colorbar(img, ax=ax)
             #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
 
@@ -517,16 +520,42 @@ class IRMApplier():
             #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
             max = torch.max(SaM_c)
             min = torch.min(SaM_c)
-            librosa.display.specshow(SaM_c.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+            librosa.display.specshow(torch.sum(SaM_c,dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
-            librosa.display.specshow(SaM_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
-            img = librosa.display.specshow(SaM_pre.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2],vmin=min,vmax=max)
+            librosa.display.specshow(torch.sum(SaM_pre,dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
+            img = librosa.display.specshow(torch.sum(torch.abs(SaM_pre-SaM_c),dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
             fig.colorbar(img, ax=ax)
             #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
 
             plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','sam.png')))
             plt.close()
 
+
+            fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+            #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
+            max = torch.max(torch.sum(fea_c,dim=1))
+            min = torch.min(torch.sum(fea_c,dim=1))
+            librosa.display.specshow(torch.sum(fea_c,dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+
+            librosa.display.specshow(torch.sum(fea_pre,dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
+            
+            img = librosa.display.specshow(torch.sum(torch.abs(fea_pre-fea_c),dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2],vmin=min,vmax=max)
+            fig.colorbar(img, ax=ax)
+            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','fea.png')))
+            plt.close()
+
+            fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True)
+            #librosa.display.specshow(mel_n.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0,0], vmin=min,vmax=max)
+            max = torch.max(torch.sum(fea_c,dim=1))
+            min = torch.min(torch.sum(fea_c,dim=1))
+            librosa.display.specshow(torch.sum(fea_c,dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
+
+            librosa.display.specshow(torch.sum(fea_pre,dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
+            
+            img = librosa.display.specshow(torch.sum(weight*torch.abs(fea_pre-fea_c),dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2],vmin=min,vmax=max)
+            fig.colorbar(img, ax=ax)
+            plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','weighted_fea.png')))
+            plt.close()
 
 
 

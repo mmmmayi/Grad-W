@@ -267,24 +267,31 @@ class IRMTrainer():
             SaM_c,mel_c,target,weight_c = self.layer_CAM(clean)
             SaM_pre,mel_pre,_,weight_pre = self.layer_CAM(noisy,target,mask)
 
-            '''
-            SaM_n, mel_n, _, _ = self.layer_CAM(noisy, target)
+            
             diff = torch.sum(torch.abs(weight_c-weight_pre),dim=1)
-            weight_c=torch.sum(weight_c,dim=1)
+            weight_pre=torch.sum(weight_pre,dim=1)
             for i in range(8):
-                
+                min = torch.min(mel_c[i])
+                max = torch.max(mel_c[i])
                 fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
 
-                librosa.display.specshow(weight_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
+                librosa.display.specshow(mel_c[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0],vmin=min,vmax=max)
+                img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy().squeeze(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
+                #img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
+                fig.colorbar(img2, ax=ax)
+                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_noWeightmae_norelu_spatial/debug/'+str(i)+'mel_50.png')
+                plt.close()
+                fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
+
+                librosa.display.specshow(weight_pre[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
                 img2=librosa.display.specshow(diff[i].detach().cpu().numpy().squeeze(),x_axis=None, ax=ax[1])
                 #img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
                 fig.colorbar(img2, ax=ax)
-                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/debug/'+str(i)+'mel.png')
+                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_noWeightmae_norelu_spatial/debug/'+str(i)+'weight_50.png')
                 plt.close()
-                
             
             quit()
-            '''
+            
             #logits = logits.reshape(logits.shape[0],-1)
             #target_mask = target_mask.reshape(target_mask.shape[0],-1)
             mse_loss = self.weight_mse(weight_c, weight_pre, SaM_c.detach(), SaM_pre)/B
