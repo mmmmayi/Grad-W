@@ -239,7 +239,10 @@ class IRMTrainer():
         #weight = torch.sum(clean,dim=-1).unsqueeze(-1)
         #m = nn.Softmax(dim=1)
         #weight = m(weight)
-        weight = torch.sum(torch.abs(weight_c-weight_pre),dim=1).unsqueeze(1)
+        B,C,F,T = weight_c.shape
+        weight = torch.sum(weight_pre-weight_c,dim=1).view(B,-1)
+        weight = torch.nn.functional.softmax(weight, dim=1)
+        weight = weight.view(B,1,F,T)
         max = torch.amax(weight,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
 
         min = torch.amin(weight,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
@@ -273,6 +276,7 @@ class IRMTrainer():
 
             mse_loss,weight,weighted_fea = self.weight_mse(weight_c, weight_pre, SaM_c.detach(), SaM_pre)
             mse_loss=mse_loss/B
+            
             '''
             dfl = torch.sum(torch.abs(SaM_c-SaM_pre),dim=1)
             for i in range(8):
@@ -284,7 +288,7 @@ class IRMTrainer():
                 img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy().squeeze(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
                 #img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
                 fig.colorbar(img2, ax=ax)
-                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_noWeightmae_norelu_norm_spatial/debug/'+str(i)+'mel_40.png')
+                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_softmax_norelu_norm_spatial/debug/'+str(i)+'mel_40.png')
                 plt.close()
                 fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
                 min = torch.min(dfl[i])
@@ -296,7 +300,7 @@ class IRMTrainer():
                 img2=librosa.display.specshow(dfl[i].detach().cpu().numpy().squeeze(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
                 #img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
                 fig.colorbar(img2, ax=ax)
-                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_noWeightmae_norelu_norm_spatial/debug/'+str(i)+'weight_40.png')
+                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_softmax_norelu_norm_spatial/debug/'+str(i)+'weight_40.png')
                 plt.close()
             
             quit()
