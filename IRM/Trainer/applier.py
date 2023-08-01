@@ -494,8 +494,12 @@ class IRMApplier():
             SaM_pre,mel_pre,_,fea_pre = self.layer_CAM(Xb,target,mask)
             SaM_n,mel_n,_,fea_n = self.layer_CAM(Xb,target,None)
 
-            weight = torch.sum(torch.abs(SaM_c-SaM_pre),dim=1).unsqueeze(1)
-
+            weight = torch.sum(SaM_pre-SaM_c,dim=1).view(1,-1)
+            weight = torch.nn.functional.softmax(weight, dim=1)
+            weight = weight.view(1,1,SaM_c.shape[-2],SaM_c.shape[-1])
+            max = torch.amax(weight,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+            min = torch.amin(weight,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+            weight=(weight-min)/(max-min)
             #continue
             
 
@@ -523,7 +527,7 @@ class IRMApplier():
             librosa.display.specshow(torch.sum(SaM_c,dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
             librosa.display.specshow(torch.sum(SaM_pre,dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
-            img = librosa.display.specshow(torch.sum(torch.abs(SaM_pre-SaM_c),dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
+            img = librosa.display.specshow(weight.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2])
             fig.colorbar(img, ax=ax)
             #librosa.display.specshow(pred_mel.detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1,1], vmin=min,vmax=max)
 
@@ -551,8 +555,8 @@ class IRMApplier():
             librosa.display.specshow(torch.sum(fea_c,dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[0])
 
             librosa.display.specshow(torch.sum(fea_pre,dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
-            
             img = librosa.display.specshow(torch.sum(weight*torch.abs(fea_pre-fea_c),dim=1).detach().cpu().squeeze().numpy(),x_axis=None, ax=ax[2],vmin=min,vmax=max)
+            print(weight.shape)
             fig.colorbar(img, ax=ax)
             plt.savefig(os.path.join(self.PROJECT_DIR,file.replace('.wav','weighted_fea.png')))
             plt.close()

@@ -240,11 +240,15 @@ class IRMTrainer():
         #m = nn.Softmax(dim=1)
         #weight = m(weight)
         weight = torch.sum(torch.abs(weight_c-weight_pre),dim=1).unsqueeze(1)
+        max = torch.amax(weight,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+
+        min = torch.amin(weight,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+        weight=(weight-min)/(max-min)
         #print(weight.shape)
         #quit()
         #weight = m(weight)
         mse = torch.sum(weight*torch.abs(clean-pre))
-        return mse
+        return mse,weight,weight*torch.abs(clean-pre)
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
         relu = nn.ReLU()
@@ -267,9 +271,10 @@ class IRMTrainer():
             SaM_c,mel_c,target,weight_c = self.layer_CAM(clean)
             SaM_pre,mel_pre,_,weight_pre = self.layer_CAM(noisy,target,mask)
 
-            
-            diff = torch.sum(torch.abs(weight_c-weight_pre),dim=1)
-            weight_pre=torch.sum(weight_pre,dim=1)
+            mse_loss,weight,weighted_fea = self.weight_mse(weight_c, weight_pre, SaM_c.detach(), SaM_pre)
+            mse_loss=mse_loss/B
+            '''
+            dfl = torch.sum(torch.abs(SaM_c-SaM_pre),dim=1)
             for i in range(8):
                 min = torch.min(mel_c[i])
                 max = torch.max(mel_c[i])
@@ -279,22 +284,26 @@ class IRMTrainer():
                 img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy().squeeze(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
                 #img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
                 fig.colorbar(img2, ax=ax)
-                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_noWeightmae_norelu_spatial/debug/'+str(i)+'mel_50.png')
+                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_noWeightmae_norelu_norm_spatial/debug/'+str(i)+'mel_40.png')
                 plt.close()
                 fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
-
-                librosa.display.specshow(weight_pre[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0])
-                img2=librosa.display.specshow(diff[i].detach().cpu().numpy().squeeze(),x_axis=None, ax=ax[1])
+                min = torch.min(dfl[i])
+                max = torch.max(dfl[i])
+                
+#                print(torch.abs(SaM_c[i]-SaM_pre[i]).shaoe)
+                temp = torch.sum(weighted_fea,dim=1)
+                librosa.display.specshow(temp[i].squeeze().detach().cpu().numpy(), x_axis=None, ax=ax[0],vmin=min,vmax=max)
+                img2=librosa.display.specshow(dfl[i].detach().cpu().numpy().squeeze(),x_axis=None, ax=ax[1],vmin=min,vmax=max)
                 #img2=librosa.display.specshow(mel_pre[i].detach().cpu().numpy(),x_axis=None, ax=ax[2] ,vmin=min,vmax=max)
                 fig.colorbar(img2, ax=ax)
-                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_noWeightmae_norelu_spatial/debug/'+str(i)+'weight_50.png')
+                plt.savefig('/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_noWeightmae_norelu_norm_spatial/debug/'+str(i)+'weight_40.png')
                 plt.close()
             
             quit()
-            
+            '''
             #logits = logits.reshape(logits.shape[0],-1)
             #target_mask = target_mask.reshape(target_mask.shape[0],-1)
-            mse_loss = self.weight_mse(weight_c, weight_pre, SaM_c.detach(), SaM_pre)/B
+            #mse_loss = self.weight_mse(weight_c, weight_pre, SaM_c.detach(), SaM_pre)/B
             train_loss = mse_loss
             if torch.isnan(train_loss) or torch.isinf(train_loss):
                 torch.save(clean, '/data_a11/mayi/project/SIP/IRM/exp/debug/clean.pt')

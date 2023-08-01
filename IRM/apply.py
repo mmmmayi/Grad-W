@@ -3,7 +3,7 @@ from Models.dataset import IRMDataset
 from Trainer.applier import IRMApplier
 
 
-PROJECT_DIR = "exp/transCov_0.001_detachC_noLM_encoder_DFL_noWeightmae/wav_50_w"
+PROJECT_DIR = "exp/transCov_0.001_detachC_noLM_encoder_DFL_noWeightmae/softmax"
 MODEL_PATH = "exp/transCov_0.001_detachC_noLM_encoder_DFL_noWeightmae/models/model_50.pt"
 mode = 'quality'
 
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr15',\
     '/data_a11/mayi/dataset/VoxCeleb_latest/VoxCeleb1/test/snr20']
     
-    for i in range(50,51,2):
-        path = "/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW10_softmax_noWeightmae_spatial/models/model_"+str(i)+'.pt'
+    for i in range(10,11,2):
+        path = "/data_a11/mayi/project/SIP/IRM/exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_noWeightmae_norelu_norm_spatial/models/model_"+str(i)+'.pt'
         print(str(i)+'th epoch')
         irm_applier.speaker_verification(eval_path,eval_list,path)
