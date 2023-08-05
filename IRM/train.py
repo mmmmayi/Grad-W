@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_softmax_norelu_norm_spatial"
+PROJECT_DIR = "exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_softmax_norelu_spatial_LSNR"
 
 ## Config
 configs = {
@@ -25,13 +25,13 @@ configs = {
     "scale":8,  
     "num_epochs": 50,
     "th": 0.05,
-    "batchsize": 32,
+    "batchsize": 14,
     "center_num": '4',
     "test_num":'4',
     "dur": 5,
-    "resume_epoch":40,
+    "resume_epoch":None,
     "ratio":0.1,
-    "gpu":[0],
+    "gpu":[0,1],
     "optimizer": {
         "initial_lr": 0.001,
         "final_lr": 0.001,
@@ -135,7 +135,7 @@ if __name__ == "__main__":
         local_rank=local_rank, w_p=configs["weight"], w_n=configs["w_n"],center_num=configs["center_num"])
     dist.barrier()
     #irm_trainer._get_global_mean_variance()
-    for epoch in range(40, configs["num_epochs"]+1):
+    for epoch in range(1, configs["num_epochs"]+1):
         irm_trainer.set_models_to_train_mode()
 
         irm_trainer.train_epoch(epoch, configs["weight"], local_rank, loader_size, scheduler)

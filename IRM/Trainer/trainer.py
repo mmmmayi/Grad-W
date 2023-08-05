@@ -243,10 +243,10 @@ class IRMTrainer():
         weight = torch.sum(weight_pre-weight_c,dim=1).view(B,-1)
         weight = torch.nn.functional.softmax(weight, dim=1)
         weight = weight.view(B,1,F,T)
-        max = torch.amax(weight,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+        #max = torch.amax(weight,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
 
-        min = torch.amin(weight,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
-        weight=(weight-min)/(max-min)
+        #min = torch.amin(weight,dim=(-1,-2)).unsqueeze(-1).unsqueeze(-1)
+        #weight=(weight-min)/(max-min)
         #print(weight.shape)
         #quit()
         #weight = m(weight)
