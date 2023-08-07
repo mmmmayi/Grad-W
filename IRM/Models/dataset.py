@@ -41,7 +41,7 @@ class IRMDataset(Dataset):
         index = -1
         self.batch_data = []
         number_of_minibathes = math.ceil(len(self.data) / batch_size)
-        self.labels = torch.load('../lst/resnet_speaker.pt')
+        self.labels = torch.load('exp/resnet_babble_speaker.pt')
         for _ in range(number_of_minibathes):
             if index>=len(self.data)-batch_size:
                 break
