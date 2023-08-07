@@ -15,7 +15,7 @@ from Trainer.trainer import IRMTrainer
 import torch.distributed as dist
 from scheduler import ExponentialDecrease
 ## Set up project dir
-PROJECT_DIR = "exp/transCov_sclean_0.001_noLM_encoder_DFLdiffW_softmax_norelu_spatial_LSNR"
+PROJECT_DIR = "exp/transCov_sclean_0.001_noLM_trueL_DFLdiffW_softmaxR_norelu_spatial_LSNR"
 
 ## Config
 configs = {

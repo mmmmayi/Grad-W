@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -o transCov_sclean_0.001_noLM_encoder_DFLdiffW_softmax_norelu_spatial_LSNR.out
+#SBATCH -o transCov_sclean_0.001_noLM_trueL_DFLdiffW_softmaxR_norelu_spatial_LSNR.out
 #SBATCH --gres=gpu:2
 #SBATCH -w ttnusa3
 #SBATCH --cpus-per-task=8

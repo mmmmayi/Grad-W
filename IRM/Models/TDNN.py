@@ -279,11 +279,9 @@ class Speaker_resnet(nn.Module):
             return embed_a
         elif mode in ['loss','acc']:
             score = self.projection(embed_a, targets)
-            if targets is None:
-                targets = torch.argmax(score, dim=1)
             result = torch.gather(score,1,targets.unsqueeze(1).long()).squeeze()
             if mode =='acc':
-                 return acc(score.detach(), targets.detach())
+                return acc(score.detach(), targets.detach())
             else:
                 return result, out4,feature,targets
 def acc(output,target):
