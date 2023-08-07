@@ -283,7 +283,7 @@ class Speaker_resnet(nn.Module):
             if mode =='acc':
                 return acc(score.detach(), targets.detach())
             else:
-                return result, out4,feature,targets
+                return result, out4,feature
 def acc(output,target):
    
     #output = output.reshape(-1)
