@@ -250,8 +250,8 @@ class IRMTrainer():
         #print(weight.shape)
         #quit()
         #weight = m(weight)
-        mse = torch.sum((1+weight)*torch.abs(clean-pre))
-        return mse,weight,(1+weight)*torch.abs(clean-pre)
+        mse = torch.sum(weight*torch.abs(clean-pre))
+        return mse,weight,weight*torch.abs(clean-pre)
 
     def train_epoch(self, epoch, weight, device, loader_size, scheduler):
         relu = nn.ReLU()
